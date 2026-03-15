@@ -61,7 +61,7 @@ final class BLEManager: NSObject, ObservableObject {
         }
         state = .scanning
         centralManager.scanForPeripherals(
-            withServices: [BLEConstants.serviceUUID],
+            withServices: [CBUUID(string: BLEConstants.serviceUUIDString)],
             options: [CBCentralManagerScanOptionAllowDuplicatesKey: false]
         )
     }
@@ -104,11 +104,14 @@ final class BLEManager: NSObject, ObservableObject {
 
 extension BLEManager: CBCentralManagerDelegate {
     nonisolated func centralManagerDidUpdateState(_ central: CBCentralManager) {
-        Task { @MainActor in
-            if central.state == .poweredOn {
+        struct UnsafeCentral: @unchecked Sendable { let central: CBCentralManager }
+        let wrapper = UnsafeCentral(central: central)
+        
+        MainActor.assumeIsolated {
+            if wrapper.central.state == .poweredOn {
                 startScanning()
-            } else {
-                state = .failed("Bluetooth unavailable: \(central.state.rawValue)")
+            } else if wrapper.central.state != .unknown && wrapper.central.state != .resetting {
+                state = .failed("Bluetooth unavailable: \(wrapper.central.state.rawValue)")
             }
         }
     }
@@ -119,16 +122,23 @@ extension BLEManager: CBCentralManagerDelegate {
         advertisementData: [String: Any],
         rssi RSSI: NSNumber
     ) {
-        Task { @MainActor in
-            let name = advertisementData[CBAdvertisementDataLocalNameKey] as? String
-                ?? peripheral.name
+        struct UnsafeDiscovery: @unchecked Sendable {
+            let central: CBCentralManager
+            let peripheral: CBPeripheral
+            let advertisementData: [String: Any]
+        }
+        let wrapper = UnsafeDiscovery(central: central, peripheral: peripheral, advertisementData: advertisementData)
+        
+        MainActor.assumeIsolated {
+            let name = wrapper.advertisementData[CBAdvertisementDataLocalNameKey] as? String
+                ?? wrapper.peripheral.name
                 ?? ""
             guard name == BLEConstants.deviceName else { return }
 
-            central.stopScan()
-            self.peripheral = peripheral
+            wrapper.central.stopScan()
+            self.peripheral = wrapper.peripheral
             state = .connecting
-            central.connect(peripheral, options: nil)
+            wrapper.central.connect(wrapper.peripheral, options: nil)
         }
     }
 
@@ -136,10 +146,13 @@ extension BLEManager: CBCentralManagerDelegate {
         _ central: CBCentralManager,
         didConnect peripheral: CBPeripheral
     ) {
-        Task { @MainActor in
+        struct UnsafeConnection: @unchecked Sendable { let peripheral: CBPeripheral }
+        let wrapper = UnsafeConnection(peripheral: peripheral)
+        
+        MainActor.assumeIsolated {
             state = .connected
-            peripheral.delegate = self
-            peripheral.discoverServices([BLEConstants.serviceUUID])
+            wrapper.peripheral.delegate = self
+            wrapper.peripheral.discoverServices([CBUUID(string: BLEConstants.serviceUUIDString)])
         }
     }
 
@@ -148,7 +161,7 @@ extension BLEManager: CBCentralManagerDelegate {
         didFailToConnect peripheral: CBPeripheral,
         error: Error?
     ) {
-        Task { @MainActor in
+        MainActor.assumeIsolated {
             state = .failed(error?.localizedDescription ?? "Connection failed")
         }
     }
@@ -161,11 +174,14 @@ extension BLEManager: CBPeripheralDelegate {
         _ peripheral: CBPeripheral,
         didDiscoverServices error: Error?
     ) {
-        Task { @MainActor in
-            guard let services = peripheral.services else { return }
-            for service in services where service.uuid == BLEConstants.serviceUUID {
-                peripheral.discoverCharacteristics(
-                    [BLEConstants.wifiCharUUID, BLEConstants.statusCharUUID],
+        struct UnsafePeripheral: @unchecked Sendable { let peripheral: CBPeripheral }
+        let wrapper = UnsafePeripheral(peripheral: peripheral)
+        
+        MainActor.assumeIsolated {
+            guard let services = wrapper.peripheral.services else { return }
+            for service in services where service.uuid == CBUUID(string: BLEConstants.serviceUUIDString) {
+                wrapper.peripheral.discoverCharacteristics(
+                    [CBUUID(string: BLEConstants.wifiCharUUIDString), CBUUID(string: BLEConstants.statusCharUUIDString)],
                     for: service
                 )
             }
@@ -177,24 +193,30 @@ extension BLEManager: CBPeripheralDelegate {
         didDiscoverCharacteristicsFor service: CBService,
         error: Error?
     ) {
-        Task { @MainActor in
-            for characteristic in service.characteristics ?? [] {
+        struct UnsafeService: @unchecked Sendable {
+            let peripheral: CBPeripheral
+            let service: CBService
+        }
+        let wrapper = UnsafeService(peripheral: peripheral, service: service)
+        
+        MainActor.assumeIsolated {
+            for characteristic in wrapper.service.characteristics ?? [] {
                 switch characteristic.uuid {
-                case BLEConstants.wifiCharUUID:
+                case CBUUID(string: BLEConstants.wifiCharUUIDString):
                     wifiChar = characteristic
                     // Send queued credentials if any
                     if !pendingSSID.isEmpty {
                         sendCredentials(
                             ssid: pendingSSID,
                             password: pendingPassword,
-                            to: peripheral,
+                            to: wrapper.peripheral,
                             via: characteristic
                         )
                     }
-                case BLEConstants.statusCharUUID:
+                case CBUUID(string: BLEConstants.statusCharUUIDString):
                     statusChar = characteristic
                     // Subscribe to status notifications from the Pi
-                    peripheral.setNotifyValue(true, for: characteristic)
+                    wrapper.peripheral.setNotifyValue(true, for: characteristic)
                 default:
                     break
                 }
@@ -207,9 +229,12 @@ extension BLEManager: CBPeripheralDelegate {
         didUpdateValueFor characteristic: CBCharacteristic,
         error: Error?
     ) {
-        Task { @MainActor in
-            guard characteristic.uuid == BLEConstants.statusCharUUID,
-                  let data = characteristic.value,
+        struct UnsafeCharacteristic: @unchecked Sendable { let characteristic: CBCharacteristic }
+        let wrapper = UnsafeCharacteristic(characteristic: characteristic)
+        
+        MainActor.assumeIsolated {
+            guard wrapper.characteristic.uuid == CBUUID(string: BLEConstants.statusCharUUIDString),
+                  let data = wrapper.characteristic.value,
                   let message = String(data: data, encoding: .utf8)
             else { return }
 

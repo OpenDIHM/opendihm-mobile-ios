@@ -22,7 +22,7 @@ private enum ConnectionMode: String, CaseIterable {
 }
 
 struct ConnectionView: View {
-    @StateObject private var bleViewModel  = ConnectionViewModel()
+    // @StateObject private var bleViewModel  = ConnectionViewModel()
     @StateObject private var directViewModel = DirectConnectViewModel()
     @EnvironmentObject private var router: AppRouter
 
@@ -68,7 +68,10 @@ struct ConnectionView: View {
                     Group {
                         switch mode {
                         case .bluetooth:
-                            BLEConnectionPanel(viewModel: bleViewModel)
+                            Text("Bluetooth Mode Disabled Temporarily")
+                                .foregroundStyle(.white.opacity(0.5))
+                                .padding()
+                            // BLEConnectionPanel(viewModel: bleViewModel)
                         case .direct:
                             DirectConnectPanel(viewModel: directViewModel)
                         }
@@ -80,11 +83,13 @@ struct ConnectionView: View {
                 }
             }
             .navigationBarHidden(true)
+            /*
             .onChange(of: bleViewModel.isProvisioned) {
                 if bleViewModel.isProvisioned {
                     router.didConnect(host: bleViewModel.resolvedHost)
                 }
             }
+            */
             .onChange(of: directViewModel.isConnected) {
                 if directViewModel.isConnected {
                     router.didConnect(host: directViewModel.host)
@@ -163,6 +168,7 @@ private struct DirectConnectPanel: View {
 // MARK: - Shared helper views
 
 /// Compact status text used by both panels.
+@MainActor
 private func statusText(_ message: String, isError: Bool) -> some View {
     Text(message)
         .font(.footnote)
@@ -172,6 +178,7 @@ private func statusText(_ message: String, isError: Bool) -> some View {
 }
 
 /// Shared connect button with loading state.
+@MainActor
 private func actionButton(
     title: String,
     icon: String,
