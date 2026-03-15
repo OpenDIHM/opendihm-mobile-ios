@@ -29,10 +29,10 @@ final class MicroscopeAPIClient {
 
     /// Initializes the client.
     /// - Parameters:
-    ///   - config: Shared microscope configuration (default: `.shared`).
+    ///   - config: Shared microscope configuration (defaults to `.shared`).
     ///   - session: URL Session (default: `.shared`, override for testing).
-    init(config: MicroscopeConfig = .shared, session: URLSession = .shared) {
-        self.config = config
+    init(config: MicroscopeConfig? = nil, session: URLSession = .shared) {
+        self.config = config ?? .shared
         self.session = session
     }
 
