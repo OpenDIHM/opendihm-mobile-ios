@@ -1,10 +1,10 @@
 name: OpenDIHM
 options:
   deploymentTarget:
-    iOS: "18.0"  # Use 18.0 for stable release; upgrade to 26 when Xcode 26 ships
+    iOS: "26.0"
   bundleIdPrefix: com.opendihm
   createIntermediateGroups: true
-  xcodeVersion: "16.0"
+  xcodeVersion: "26.0"
 
 settings:
   base:

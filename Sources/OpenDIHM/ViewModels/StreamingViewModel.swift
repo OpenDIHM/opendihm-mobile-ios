@@ -24,10 +24,18 @@ final class StreamingViewModel: ObservableObject {
     /// Network framework TCP connection to the raw H.264 stream.
     private var connection: NWConnection?
 
+    /// Low-latency H.264 Annex-B parser.
+    private let parser = H264StreamParser()
+
     init(host: String, port: Int) {
         self.host = host
         self.port = port
         displayLayer.videoGravity = .resizeAspect
+
+        // Wire the parser to the hardware display layer
+        parser.onFrameReady = { [weak self] sampleBuffer in
+            self?.displayLayer.enqueue(sampleBuffer)
+        }
     }
 
     // MARK: - Public API
@@ -82,18 +90,16 @@ final class StreamingViewModel: ObservableObject {
     }
 
     /// Recursively reads Annex-B H.264 data from the TCP connection and
-    /// forwards it to the AVSampleBufferDisplayLayer's H264 parser.
+    /// forwards it to the H264StreamParser.
     private func receiveData() {
-        connection?.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] data, _, isComplete, error in
+        connection?.receive(minimumIncompleteLength: 1, maximumLength: 1024 * 128) { [weak self] data, _, isComplete, error in
             guard let self else { return }
             if let data, !data.isEmpty {
-                // Feed raw Annex-B data to the display layer.
-                // The layer has an internal H.264 NALU parser when driven
-                // via the formatDescription + CMSampleBuffer path.
-                // For a complete implementation this requires an h264 NALU parser
-                // that wraps data into CMSampleBuffer — this is the integration point.
-                // TODO: Implement AnnexB → CMSampleBuffer pipeline.
-                _ = data
+                // Pass the raw chunk of bytes to our parser.
+                // It will find NALU boundaries and call onFrameReady.
+                Task { @MainActor in
+                    self.parser.process(data: data)
+                }
             }
             if !isComplete && error == nil {
                 self.receiveData()
