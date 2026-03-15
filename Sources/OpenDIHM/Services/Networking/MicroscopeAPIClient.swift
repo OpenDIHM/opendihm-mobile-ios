@@ -22,7 +22,7 @@ enum APIError: LocalizedError {
     }
 }
 
-/// Async/await HTTP client for the OpenDIHM firmware REST API.
+@MainActor
 final class MicroscopeAPIClient {
     private let session: URLSession
     private let config: MicroscopeConfig

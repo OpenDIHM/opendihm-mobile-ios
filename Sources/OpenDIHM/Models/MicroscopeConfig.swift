@@ -3,7 +3,7 @@
 
 import Foundation
 
-/// Singleton holding the resolved network addresses for the connected Pi.
+@MainActor
 final class MicroscopeConfig {
     /// Shared instance accessed across the application.
     static let shared = MicroscopeConfig()
