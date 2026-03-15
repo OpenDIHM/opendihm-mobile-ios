@@ -93,8 +93,8 @@ final class H264StreamParser {
         guard let sps = currentSPS, let pps = currentPPS else { return }
 
         let parameterPointers = [
-            sps.withUnsafeBytes { $0.baseAddress!.assumingType(of: UInt8.self) },
-            pps.withUnsafeBytes { $0.baseAddress!.assumingType(of: UInt8.self) }
+            sps.withUnsafeBytes { $0.baseAddress!.assumingMemoryBound(to: UInt8.self) },
+            pps.withUnsafeBytes { $0.baseAddress!.assumingMemoryBound(to: UInt8.self) }
         ]
         let parameterSizes = [sps.count, pps.count]
 
