@@ -60,3 +60,11 @@ fastlane/report.xml
 fastlane/Preview.html
 fastlane/screenshots/**/*.png
 fastlane/test_output
+
+# XcodeGen — regenerated on demand
+OpenDIHM.xcodeproj/project.pbxproj
+
+# Xcode build artefacts
+xcuserdata/
+*.xcuserstate
+DerivedData/

@@ -1,0 +1,30 @@
+name: OpenDIHM
+options:
+  deploymentTarget:
+    iOS: "18.0"  # Use 18.0 for stable release; upgrade to 26 when Xcode 26 ships
+  bundleIdPrefix: com.opendihm
+  createIntermediateGroups: true
+  xcodeVersion: "16.0"
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    DEVELOPMENT_TEAM: ""   # Set your Apple Developer Team ID here
+    IPHONEOS_DEPLOYMENT_TARGET: "18.0"
+    TARGETED_DEVICE_FAMILY: "1"  # iPhone only
+
+targets:
+  OpenDIHM:
+    type: application
+    platform: iOS
+    sources:
+      - Sources/OpenDIHM
+    info:
+      path: Sources/OpenDIHM/Resources/Info.plist
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.opendihm.mobile-ios
+        INFOPLIST_FILE: Sources/OpenDIHM/Resources/Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    entitlements:
+      path: Sources/OpenDIHM/Resources/OpenDIHM.entitlements
