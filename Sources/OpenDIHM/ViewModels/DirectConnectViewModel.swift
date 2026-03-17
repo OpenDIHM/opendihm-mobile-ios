@@ -16,10 +16,10 @@ final class DirectConnectViewModel: ObservableObject {
 
     // MARK: - Output State
 
+    @Published var lastMessageIsError: Bool = false
     @Published private(set) var statusMessage: String = ""
     @Published private(set) var isConnecting: Bool = false
     @Published private(set) var isConnected: Bool = false
-    @Published private(set) var isError: Bool = false
 
     // MARK: - Dependencies
 
@@ -34,23 +34,27 @@ final class DirectConnectViewModel: ObservableObject {
         guard !trimmed.isEmpty else { return }
 
         isConnecting = true
-        isError = false
+        lastMessageIsError = false
         statusMessage = "Connecting to \(trimmed)..."
 
-        // Temporarily point config at the entered host for the health-check
         MicroscopeConfig.shared.host = trimmed
 
         do {
             let status = try await apiClient.getServerStatus()
             statusMessage = "✓ Connected — \(status.microscope) is \(status.status)"
-            isError = false
             isConnected = true
         } catch {
             statusMessage = "Failed: \(error.localizedDescription)"
-            isError = true
+            lastMessageIsError = true
             MicroscopeConfig.shared.host = ""
         }
 
         isConnecting = false
+    }
+
+    /// Resets the error status and message.
+    func clearMessage() {
+        statusMessage = ""
+        lastMessageIsError = false
     }
 }

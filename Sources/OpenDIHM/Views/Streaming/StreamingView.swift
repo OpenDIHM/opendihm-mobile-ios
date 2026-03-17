@@ -59,20 +59,36 @@ struct StreamingView: View {
     }
 }
 
-// MARK: - UIKit Layer Bridge
-
 /// `UIViewRepresentable` that hosts an `AVSampleBufferDisplayLayer`.
 private struct StreamDisplayView: UIViewRepresentable {
     let displayLayer: AVSampleBufferDisplayLayer
 
-    func makeUIView(context: Context) -> UIView {
-        let view = UIView()
+    func makeUIView(context: Context) -> StreamDisplayHostingView {
+        let view = StreamDisplayHostingView(displayLayer: displayLayer)
         view.backgroundColor = .black
-        view.layer.addSublayer(displayLayer)
         return view
     }
 
-    func updateUIView(_ uiView: UIView, context: Context) {
-        displayLayer.frame = uiView.bounds
+    func updateUIView(_ uiView: StreamDisplayHostingView, context: Context) {}
+}
+
+/// Helper view to correctly host the display layer using backing layer pattern.
+private final class StreamDisplayHostingView: UIView {
+    private let displayLayer: AVSampleBufferDisplayLayer
+    
+    init(displayLayer: AVSampleBufferDisplayLayer) {
+        self.displayLayer = displayLayer
+        super.init(frame: .zero)
+        layer.addSublayer(displayLayer)
+    }
+    
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+    
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        // Match the display layer to the view's bounds exactly
+        displayLayer.frame = bounds
     }
 }

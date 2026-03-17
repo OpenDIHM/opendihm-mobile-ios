@@ -7,96 +7,191 @@ struct ControlView: View {
     @EnvironmentObject private var router: AppRouter
     @StateObject private var viewModel = ControlViewModel()
 
+    @State private var isInfoPaneExpanded: Bool = true
+
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Color(hue: 0.6, saturation: 0.05, brightness: 0.07)
-                    .ignoresSafeArea()
+        ZStack {
+            // Base background ensures no white gaps during transitions
+            Theme.background.ignoresSafeArea()
 
-                VStack(spacing: 0) {
-                    // Live preview panel
-                    StreamingView(host: MicroscopeConfig.shared.host,
-                                  port: MicroscopeConfig.shared.streamPort)
-                        .frame(maxWidth: .infinity)
-                        .aspectRatio(16 / 9, contentMode: .fit)
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
-                        .padding(.horizontal, 16)
-                        .padding(.top, 16)
-
-                    // Controls panel
-                    ScrollView {
-                        VStack(spacing: 20) {
-                            // Z-distance picker
-                            ZDistancePicker(selectedZ: $viewModel.selectedZ)
-
-                            // Capture button
-                            CaptureButton(
-                                isCapturing: viewModel.isCapturing,
-                                action: { Task { await viewModel.capture() } }
-                            )
-
-                            // Status / error banner
-                            if let message = viewModel.lastMessage {
-                                StatusBanner(message: message, isError: viewModel.lastMessageIsError)
-                            }
-                        }
-                        .padding(20)
-                    }
+            HStack(spacing: 0) {
+                // Left Column: Navigation & Controls
+                VStack(spacing: 24) {
+                    brandingHeader
+                    
+                    Spacer()
+                    
+                    zLevelMenu
+                    
+                    CaptureButton(
+                        isCapturing: viewModel.isCapturing,
+                        action: { Task { await viewModel.capture() } }
+                    )
+                    
+                    Spacer()
+                    
+                    disconnectButton
                 }
-            }
-            .navigationTitle("OpenDIHM")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Disconnect", role: .destructive) {
-                        router.disconnect()
+                .padding(.vertical, 32)
+                .frame(width: 65)
+                .background(Theme.primary.ignoresSafeArea(edges: .vertical))
+                .foregroundStyle(.white)
+
+                // Center Column: Live Video Feed
+                StreamingView(host: MicroscopeConfig.shared.host,
+                              port: MicroscopeConfig.shared.streamPort)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color.black)
+
+                // Right Column: Information Panel
+                VStack(spacing: 16) {
+                    toggleInfoButton
+                    
+                    if isInfoPaneExpanded {
+                        StatusPanel()
+                            .transition(.move(edge: .trailing).combined(with: .opacity))
+                    } else {
+                        CompactStatusPanel()
+                            .transition(.move(edge: .leading).combined(with: .opacity))
                     }
-                    .font(.footnote)
+                    
+                    Spacer()
                 }
+                .padding(.vertical, 32)
+                .padding(.horizontal, isInfoPaneExpanded ? 12 : 8)
+                .frame(width: isInfoPaneExpanded ? 150 : 65)
+                .background(Theme.background.ignoresSafeArea(edges: .vertical))
+                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isInfoPaneExpanded)
             }
+        }
+        .ignoresSafeArea()
+        .navigationBarHidden(true)
+        .alert("Error", isPresented: $viewModel.lastMessageIsError, actions: {
+            Button("OK", role: .cancel) { viewModel.clearMessage() }
+        }, message: {
+            if let message = viewModel.lastMessage {
+                Text(message)
+            }
+        })
+    }
+
+    private var brandingHeader: some View {
+        VStack(spacing: 0) {
+            Text("O")
+                .font(Theme.Typography.heading(size: 16))
+            Text("D")
+                .font(Theme.Typography.heading(size: 16))
+                .foregroundStyle(Theme.secondary)
+        }
+    }
+
+    private var zLevelMenu: some View {
+        Menu {
+            Button("5x (5μm)") { viewModel.selectedZ = 5.0 }
+            Button("15x (15μm)") { viewModel.selectedZ = 15.0 }
+            Button("30x (30μm)") { viewModel.selectedZ = 30.0 }
+        } label: {
+            zLevelLabel
+        }
+    }
+
+    private var zLevelLabel: some View {
+        HStack(spacing: 1) {
+            Text("\(Int(viewModel.selectedZ))")
+                .font(Theme.Typography.heading(size: 18))
+            Text("x")
+                .font(Theme.Typography.mono(size: 12))
+                .baselineOffset(4)
+                .opacity(0.8)
+        }
+        .frame(width: 50, height: 44)
+        .background(Theme.secondary.opacity(0.2))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Theme.secondary.opacity(0.4), lineWidth: 1)
+        )
+    }
+
+    private var toggleInfoButton: some View {
+        Button(action: { isInfoPaneExpanded.toggle() }) {
+            Image(systemName: isInfoPaneExpanded ? "xmark.circle" : "info.circle.fill")
+                .font(.title2)
+                .foregroundStyle(Theme.primary)
+                .frame(width: 44, height: 44)
+                .background(Color.white.opacity(0.6))
+                .clipShape(Circle())
+        }
+    }
+
+    private var disconnectButton: some View {
+        Button(action: { router.disconnect() }) {
+            Image(systemName: "power")
+                .font(.title2)
+                .foregroundStyle(.white.opacity(0.6))
         }
     }
 }
 
 // MARK: - Sub-components
 
-private struct ZDistancePicker: View {
-    @Binding var selectedZ: Double
+private struct StatusPanel: View {
+    var body: some View {
+        VStack(spacing: 12) {
+            StatusItem(icon: "thermometer.medium", label: "Pi Temp", value: "42°C", color: .orange)
+            StatusItem(icon: "antenna.radiowaves.left.and.right", label: "Signal", value: "-62dBm", color: Theme.secondary)
+            StatusItem(icon: "bolt.fill", label: "Laser", value: "Active", color: .red)
+            StatusItem(icon: "humidity", label: "Humidity", value: "45%", color: .blue)
+            StatusItem(icon: "stopwatch", label: "Exposure", value: "2ms", color: .green)
+            StatusItem(icon: "sdcard", label: "Storage", value: "14GB", color: Theme.neutral)
+        }
+        .padding(10)
+        .background(Color.white.opacity(0.85))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+    }
+}
 
-    private let configurations: [(label: String, z: Double)] = [
-        ("5× — Tissue sections", 5.0),
-        ("15× — Single cells",  15.0),
-        ("30× — Sub-cellular",  30.0),
-    ]
+private struct CompactStatusPanel: View {
+    var body: some View {
+        VStack(spacing: 14) {
+            Image(systemName: "thermometer.medium").foregroundStyle(.orange)
+            Image(systemName: "antenna.radiowaves.left.and.right").foregroundStyle(Theme.secondary)
+            Image(systemName: "bolt.fill").foregroundStyle(.red)
+            Image(systemName: "humidity").foregroundStyle(.blue)
+            Image(systemName: "stopwatch").foregroundStyle(.green)
+            Image(systemName: "sdcard").foregroundStyle(Theme.neutral)
+        }
+        .font(.system(size: 16))
+        .frame(width: 44)
+        .padding(.vertical, 16)
+        .background(Color.white.opacity(0.85))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+    }
+}
+
+private struct StatusItem: View {
+    let icon: String
+    let label: String
+    let value: String
+    let color: Color
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Magnification (Z-distance)")
-                .font(.headline)
-                .foregroundStyle(.white)
-
-            ForEach(configurations, id: \.label) { config in
-                Button(action: { selectedZ = config.z }) {
-                    HStack {
-                        Text(config.label)
-                            .foregroundStyle(.white)
-                        Spacer()
-                        if selectedZ == config.z {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(.teal)
-                        }
-                    }
-                    .padding(.vertical, 12)
-                    .padding(.horizontal, 16)
-                    .background(selectedZ == config.z ? Color.teal.opacity(0.15) : Color.white.opacity(0.05))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(selectedZ == config.z ? Color.teal.opacity(0.5) : Color.white.opacity(0.08),
-                                    lineWidth: 1)
-                    )
-                }
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 14))
+                .foregroundStyle(color)
+                .frame(width: 20)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(label)
+                    .font(.system(size: 10))
+                    .foregroundStyle(Theme.neutral)
+                Text(value)
+                    .font(Theme.Typography.mono(size: 11))
+                    .bold()
             }
+            Spacer()
         }
     }
 }
@@ -107,20 +202,21 @@ private struct CaptureButton: View {
 
     var body: some View {
         Button(action: action) {
-            Group {
+            ZStack {
+                Circle()
+                    .fill(isCapturing ? Theme.neutral : Theme.secondary)
+                    .frame(width: 44, height: 44)
+                
                 if isCapturing {
                     ProgressView()
-                        .tint(.black)
+                        .tint(.white)
                 } else {
-                    Label("Capture RAW Hologram", systemImage: "camera.aperture")
-                        .font(.headline)
+                    Image(systemName: "camera.aperture")
+                        .font(.title2)
+                        .foregroundStyle(.white)
                 }
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 18)
-            .background(isCapturing ? Color.gray : Color.teal)
-            .foregroundStyle(.black)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .shadow(color: Theme.secondary.opacity(0.3), radius: 5, x: 0, y: 3)
         }
         .disabled(isCapturing)
         .animation(.easeInOut(duration: 0.2), value: isCapturing)
@@ -135,13 +231,12 @@ private struct StatusBanner: View {
         HStack(spacing: 10) {
             Image(systemName: isError ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
             Text(message)
-                .font(.footnote)
+                .font(.caption2)
         }
         .foregroundStyle(isError ? .red : .green)
-        .padding(12)
+        .padding(8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background((isError ? Color.red : Color.green).opacity(0.1))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-        .transition(.opacity.combined(with: .move(edge: .bottom)))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 }

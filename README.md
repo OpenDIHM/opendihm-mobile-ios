@@ -28,16 +28,49 @@ firmware and provides controls for the microscope. The controls are provided via
 - Xcode 26.0
 - Swift 6.2
 
-## Project Structure
-```markdown
-- `App/`: Application entry point and lifecycle management.
-- `Views/`: SwiftUI views organized by feature (Connection, Control, Settings).
-- `ViewModels/`: Business logic and state management for the UI.
-- `Models/`: Data structures for configuration and API responses.
-- `Services/`:
-  - `Bluetooth/`: BLE communication and WiFi credential sharing.
-  - `Networking/`: HTTP API clients for microscope control.
-  - `Streaming/`: RTSP video stream processing.
-- `Utilities/`: Shared helpers, extensions, and constants.
-- `Resources/`: Assets, localizations, and configuration files.
+## Project Architecture
+```mermaid
+graph TD
+    subgraph UI_Layer ["View Layer (SwiftUI)"]
+        Root["RootView (Navigation)"]
+        CV["ConnectionView (BLE/WiFi)"]
+        DV["DirectConnectView"]
+        SV["StreamingView (Live Preview)"]
+        CT["ControlView (Capture/Metadata)"]
+    end
+
+    subgraph Logic_Layer [ViewModel Layer]
+        CVM["ConnectionViewModel"]
+        DVM["DirectConnectViewModel"]
+        SVM["StreamingViewModel"]
+        TVM["ControlViewModel"]
+    end
+
+    subgraph Service_Layer [Service & Utility Layer]
+        BLE["BLEManager (CoreBluetooth)"]
+        API["MicroscopeAPIClient (REST)"]
+        Parser["H264StreamParser (VTB Bridge)"]
+        VTB["VideoToolbox (Hardware Decoding)"]
+        Config["MicroscopeConfig (Local State)"]
+    end
+
+    %% Wiring
+    Root --> CV & DV & SV & CT
+    CV <--> CVM
+    DV <--> DVM
+    SV <--> SVM
+    CT <--> TVM
+
+    %% Service Integration
+    CVM --> BLE
+    DVM & TVM & SVM --> API
+    SVM --> Parser
+    Parser --> VTB
+    CVM & DVM & TVM --> Config
+
+    %% External Comm
+    BLE -.-> |"Bluetooth"| Pi[Raspberry Pi]
+    API -.-> |"HTTP"| Pi
+    Parser -.-> |"Raw TCP:8888"| Pi
+
 ```

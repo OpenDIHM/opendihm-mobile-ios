@@ -15,11 +15,14 @@ final class H264StreamParser {
 
     private var formatDescription: CMVideoFormatDescription?
     private var buffer = Data()
+    private var currentSPS: Data?
+    private var currentPPS: Data?
+    private var lastPTS: CMTime = .zero
+    private var frameCount: Int64 = 0
 
     // MARK: - Public API
 
     /// Appends new bytes from the network to the parser's internal buffer.
-    /// - Parameter data: Raw bytes received from the TCP stream.
     func process(data: Data) {
         buffer.append(data)
         extractNALUnits()
@@ -28,133 +31,205 @@ final class H264StreamParser {
     // MARK: - Annex-B Parsing Logic
 
     private func extractNALUnits() {
-        // H.264 Start Codes: 0x000001 (3-byte) or 0x00000001 (4-byte)
-        // We look for the 4-byte variant as standard in libcamera-vid.
-        let startCode = Data([0x00, 0x00, 0x00, 0x01])
-
-        while true {
-            guard buffer.count > 4 else { return }
-
-            // Find the start of the current NALU
-            guard let range = buffer.range(of: startCode) else {
-                // No more start codes found in current buffer
-                return
+        while buffer.count > 4 {
+            // Find the first start code
+            guard let firstStart = findStartCode(in: buffer) else { return }
+            
+            // If the start code is not at the beginning, trim garbage
+            if firstStart.index > buffer.startIndex {
+                buffer.removeSubrange(..<firstStart.index)
+                continue
             }
-
-            // Find the start of the NEXT NALU to define the end of the current one
-            let remaining = buffer.advanced(by: range.upperBound)
-            if let nextRange = remaining.range(of: startCode) {
-                // We have a full NALU between range.upperBound and nextRange.lowerBound
-                let naluData = buffer.subdata(in: range.upperBound ..< (range.upperBound + nextRange.lowerBound))
-
-                handleNALU(naluData)
-
-                // Advance the buffer
-                buffer.removeSubrange(0 ..< (range.upperBound + nextRange.lowerBound))
+            
+            let naluStart = buffer.index(firstStart.index, offsetBy: firstStart.length)
+            
+            // Find the next start code to determine the end of this NALU
+            if let nextStart = findStartCode(in: buffer[naluStart...]) {
+                let naluData = buffer[naluStart ..< nextStart.index]
+                handleNALU(Data(naluData))
+                
+                // Remove the processed NALU, keeping the next start code
+                buffer.removeSubrange(..<nextStart.index)
             } else {
-                // Incomplete NALU, wait for more data from network
+                // We have the start but not the end yet. Wait for more data.
                 return
             }
         }
     }
 
-    private func handleNALU(_ data: Data) {
-        // NALU Header byte: [Forbidden (1 bit) | NRI (2 bits) | Type (5 bits)]
-        let naluType = data[0] & 0x1F
+    /// Generic helper to find the first H.264 start code (00 00 01 or 00 00 00 01)
+    private func findStartCode<C: RandomAccessCollection>(in data: C) -> (index: C.Index, length: Int)? 
+    where C.Element == UInt8 {
+        guard data.count >= 3 else { return nil }
+        
+        var i = data.startIndex
+        let limit = data.index(data.endIndex, offsetBy: -3)
+        
+        while i <= limit {
+            if data[i] == 0 && data[data.index(after: i)] == 0 {
+                let third = data[data.index(i, offsetBy: 2)]
+                if third == 1 {
+                    return (i, 3)
+                } else if third == 0 {
+                    let fourthIdx = data.index(i, offsetBy: 3)
+                    if fourthIdx < data.endIndex && data[fourthIdx] == 1 {
+                        return (i, 4)
+                    }
+                }
+            }
+            i = data.index(after: i)
+        }
+        return nil
+    }
 
+    private func handleNALU(_ data: Data) {
+        guard !data.isEmpty else { return }
+        let naluType = data[0] & 0x1F
+        
         switch naluType {
-        case 7: // SPS (Sequence Parameter Set)
-            updateFormatDescription(sps: data)
-        case 8: // PPS (Picture Parameter Set)
-            updatePPS(pps: data)
-        case 1, 5: // P-Frame or I-Frame
+        case 7: // SPS
+            if currentSPS != data {
+                print("H264Parser: Received SPS (\(data.count) bytes)")
+                currentSPS = data
+                refreshFormatDescription()
+            }
+        case 8: // PPS
+            if currentPPS != data {
+                print("H264Parser: Received PPS (\(data.count) bytes)")
+                currentPPS = data
+                refreshFormatDescription()
+            }
+        case 5: // IDR (I-Frame)
+            createSampleBuffer(from: data)
+        case 1: // Non-IDR (P-Frame)
+            // Only log every 30 frames for P-frames to avoid log spam
             createSampleBuffer(from: data)
         default:
+            // Skip AUD, SEI, etc.
             break
         }
     }
 
     // MARK: - VideoToolbox Integration
 
-    private var currentSPS: Data?
-    private var currentPPS: Data?
-
-    private func updateFormatDescription(sps: Data) {
-        currentSPS = sps
-        refreshFormatDescription()
-    }
-
-    private func updatePPS(pps: Data) {
-        currentPPS = pps
-        refreshFormatDescription()
-    }
-
     private func refreshFormatDescription() {
         guard let sps = currentSPS, let pps = currentPPS else { return }
 
-        let parameterPointers = [
-            sps.withUnsafeBytes { $0.baseAddress!.assumingMemoryBound(to: UInt8.self) },
-            pps.withUnsafeBytes { $0.baseAddress!.assumingMemoryBound(to: UInt8.self) }
-        ]
-        let parameterSizes = [sps.count, pps.count]
+        sps.withUnsafeBytes { spsBytes in
+            pps.withUnsafeBytes { ppsBytes in
+                let parameterPointers = [
+                    spsBytes.baseAddress!.assumingMemoryBound(to: UInt8.self),
+                    ppsBytes.baseAddress!.assumingMemoryBound(to: UInt8.self)
+                ]
+                let parameterSizes = [spsBytes.count, ppsBytes.count]
 
-        let status = CMVideoFormatDescriptionCreateFromH264ParameterSets(
-            allocator: kCFAllocatorDefault,
-            parameterSetCount: 2,
-            parameterSetPointers: parameterPointers,
-            parameterSetSizes: parameterSizes,
-            nalUnitHeaderLength: 4,
-            formatDescriptionOut: &formatDescription
-        )
+                var description: CMFormatDescription?
+                let status = CMVideoFormatDescriptionCreateFromH264ParameterSets(
+                    allocator: kCFAllocatorDefault,
+                    parameterSetCount: 2,
+                    parameterSetPointers: parameterPointers,
+                    parameterSetSizes: parameterSizes,
+                    nalUnitHeaderLength: 4,
+                    formatDescriptionOut: &description
+                )
 
-        if status != noErr {
-            print("H264Parser: Failed to create format description: \(status)")
+                if status == noErr {
+                    print("H264Parser: Format description created successfully")
+                    self.formatDescription = description
+                } else {
+                    print("H264Parser: Failed to create format description: \(status)")
+                }
+            }
         }
     }
 
     private func createSampleBuffer(from naluData: Data) {
-        guard let formatDescription = formatDescription else { return }
+        guard let formatDescription = formatDescription else { 
+            print("H264Parser: Dropping frame - no format description yet")
+            return 
+        }
 
-        // VideoToolbox expects NALUs to be prefixed with their length (AVCC format)
-        // instead of the Annex-B start codes.
-        var length = UInt32(naluData.count).bigEndian
-        var avccData = Data()
-        avccData.append(UnsafeBufferPointer(start: &length, count: 1))
-        avccData.append(naluData)
+        let naluLength = naluData.count
+        let totalSize = naluLength + 4
+        var avccLength = UInt32(naluLength).bigEndian
 
         var blockBuffer: CMBlockBuffer?
-        let status = avccData.withUnsafeBytes { bytes in
-            CMBlockBufferCreateWithMemoryBlock(
-                allocator: kCFAllocatorDefault,
-                memoryBlock: UnsafeMutableRawPointer(mutating: bytes.baseAddress!),
-                blockLength: avccData.count,
-                blockAllocator: kCFAllocatorNull,
-                customBlockSource: nil,
-                offsetToData: 0,
-                dataLength: avccData.count,
-                flags: 0,
-                blockBufferOut: &blockBuffer
+        var status = CMBlockBufferCreateWithMemoryBlock(
+            allocator: kCFAllocatorDefault,
+            memoryBlock: nil,
+            blockLength: totalSize,
+            blockAllocator: kCFAllocatorDefault,
+            customBlockSource: nil,
+            offsetToData: 0,
+            dataLength: totalSize,
+            flags: 0,
+            blockBufferOut: &blockBuffer
+        )
+
+        guard status == noErr, let buffer = blockBuffer else { 
+            print("H264Parser: Failed to create block buffer: \(status)")
+            return 
+        }
+
+        // Copy length prefix
+        status = CMBlockBufferReplaceDataBytes(
+            with: &avccLength,
+            blockBuffer: buffer,
+            offsetIntoDestination: 0,
+            dataLength: 4
+        )
+        guard status == noErr else { return }
+
+        // Copy NALU data
+        naluData.withUnsafeBytes { bytes in
+            _ = CMBlockBufferReplaceDataBytes(
+                with: bytes.baseAddress!,
+                blockBuffer: buffer,
+                offsetIntoDestination: 4,
+                dataLength: naluLength
             )
         }
 
-        guard status == noErr, let buffer = blockBuffer else { return }
+        // For zero-latency real-time streaming, we need a valid host-relative timestamp.
+        // We use the host clock for the first frame, then increment it to ensure 
+        // perfect monotonicity even if network delivery is jittery.
+        if frameCount == 0 {
+            lastPTS = CMClockGetTime(CMClockGetHostTimeClock())
+        } else {
+            let frameDuration = CMTime(value: 3000, timescale: 90000) // 30 fps
+            lastPTS = CMTimeAdd(lastPTS, frameDuration)
+        }
+        frameCount += 1
+
+        var timingInfo = CMSampleTimingInfo(
+            duration: CMTime(value: 3000, timescale: 90000),
+            presentationTimeStamp: lastPTS,
+            decodeTimeStamp: .invalid
+        )
 
         var sampleBuffer: CMSampleBuffer?
-        let sampleSize = avccData.count
         let sampleStatus = CMSampleBufferCreateReady(
             allocator: kCFAllocatorDefault,
             dataBuffer: buffer,
             formatDescription: formatDescription,
             sampleCount: 1,
-            sampleTimingEntryCount: 0,
-            sampleTimingArray: nil,
+            sampleTimingEntryCount: 1,
+            sampleTimingArray: &timingInfo,
             sampleSizeEntryCount: 1,
-            sampleSizeArray: [sampleSize],
+            sampleSizeArray: [totalSize],
             sampleBufferOut: &sampleBuffer
         )
 
         if sampleStatus == noErr, let sb = sampleBuffer {
+            CMSetAttachment(
+                sb,
+                key: kCMSampleAttachmentKey_DisplayImmediately,
+                value: kCFBooleanTrue,
+                attachmentMode: kCMAttachmentMode_ShouldPropagate
+            )
             onFrameReady?(sb)
+        } else {
+            print("H264Parser: Failed to create sample buffer: \(sampleStatus)")
         }
     }
 }

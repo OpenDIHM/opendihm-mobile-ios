@@ -15,7 +15,7 @@ private enum ConnectionMode: String, CaseIterable {
 
     var icon: String {
         switch self {
-        case .bluetooth: return "dot.radiowaves.left.andright"
+        case .bluetooth: return "dot.radiowaves.left.and.right"
         case .direct:    return "network"
         }
     }
@@ -31,58 +31,72 @@ struct ConnectionView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                // Background gradient
-                LinearGradient(
-                    colors: [Color(hue: 0.6, saturation: 0.8, brightness: 0.15),
-                             Color(hue: 0.58, saturation: 0.6, brightness: 0.08)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .ignoresSafeArea()
+                // Background
+                Theme.background.ignoresSafeArea()
 
-                VStack(spacing: 32) {
-                    // Title
-                    VStack(spacing: 8) {
+                VStack(spacing: 20) {
+                    // Logo only
+                    if let uiImage = UIImage(contentsOfFile: "/Users/gokhankocmarli/Projects/opendihm/opendihm-branding/logos/opendihm-horizontal.jpeg") {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(height: 50)
+                            .padding(.top, 40)
+                    } else {
                         Image(systemName: "microscope")
-                            .font(.system(size: 56))
-                            .foregroundStyle(.white.opacity(0.9))
-                        Text("OpenDIHM")
-                            .font(.largeTitle.bold())
-                            .foregroundStyle(.white)
-                        Text("Connect your microscope")
-                            .font(.subheadline)
-                            .foregroundStyle(.white.opacity(0.6))
+                            .font(.system(size: 40))
+                            .foregroundStyle(Theme.primary)
+                            .padding(.top, 40)
                     }
-                    .padding(.top, 48)
 
-                    // Mode picker
+                    // Mode picker - closer to the panel
                     Picker("Connection Mode", selection: $mode) {
                         ForEach(ConnectionMode.allCases, id: \.self) { m in
                             Label(m.rawValue, systemImage: m.icon).tag(m)
                         }
                     }
                     .pickerStyle(.segmented)
-                    .padding(.horizontal, 24)
+                    .frame(maxWidth: 400)
+                    .tint(Theme.secondary)
 
-                    // Panel for selected mode
+                    // Panel for selected mode - Wider and simpler for Landscape
                     Group {
                         switch mode {
                         case .bluetooth:
-                            Text("Bluetooth Mode Disabled Temporarily")
-                                .foregroundStyle(.white.opacity(0.5))
-                                .padding()
-                            // BLEConnectionPanel(viewModel: bleViewModel)
+                            VStack(spacing: 8) {
+                                Image(systemName: "bluetooth")
+                                    .font(.title2)
+                                    .foregroundStyle(Theme.secondary)
+                                Text("Bluetooth Provisioning")
+                                    .font(Theme.Typography.heading(size: 14))
+                                Text("Scanning for nearby devices...")
+                                    .font(Theme.Typography.body(size: 11))
+                                    .foregroundStyle(Theme.neutral)
+                            }
                         case .direct:
                             DirectConnectPanel(viewModel: directViewModel)
                         }
                     }
-                    .transition(.opacity.combined(with: .move(edge: .trailing)))
-                    .animation(.easeInOut(duration: 0.25), value: mode)
+                    .padding(32)
+                    .frame(maxWidth: 500)
+                    .background(Color.white.opacity(0.98))
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .shadow(color: Color.black.opacity(0.08), radius: 20, x: 0, y: 10)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+                    .animation(.spring(), value: mode)
 
                     Spacer()
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .navigationBarHidden(true)
+            .alert("Error", isPresented: $directViewModel.lastMessageIsError, actions: {
+                Button("OK", role: .cancel) { directViewModel.clearMessage() }
+            }, message: {
+                if !directViewModel.statusMessage.isEmpty {
+                    Text(directViewModel.statusMessage)
+                }
+            })
             /*
             .onChange(of: bleViewModel.isProvisioned) {
                 if bleViewModel.isProvisioned {
@@ -124,7 +138,7 @@ private struct BLEConnectionPanel: View {
 
             actionButton(
                 title: "Connect via Bluetooth",
-                icon: "dot.radiowaves.left.andright",
+                icon: "dot.radiowaves.left.and.right",
                 isLoading: viewModel.isConnecting,
                 disabled: viewModel.ssid.isEmpty || viewModel.password.isEmpty
             ) {
@@ -143,14 +157,10 @@ private struct DirectConnectPanel: View {
     var body: some View {
         VStack(spacing: 16) {
             GlassTextField(
-                placeholder: "Pi IP or hostname (e.g. 192.168.178.31)",
+                placeholder: "IP or hostname",
                 text: $viewModel.host,
                 icon: "network"
             )
-
-            if !viewModel.statusMessage.isEmpty {
-                statusText(viewModel.statusMessage, isError: viewModel.isError)
-            }
 
             actionButton(
                 title: "Connect Directly",
@@ -161,10 +171,8 @@ private struct DirectConnectPanel: View {
                 Task { await viewModel.connect() }
             }
         }
-        .padding(.horizontal, 24)
     }
 }
-
 // MARK: - Shared helper views
 
 /// Compact status text used by both panels.
@@ -189,22 +197,17 @@ private func actionButton(
     Group {
         if isLoading {
             ProgressView()
-                .tint(.white)
-                .scaleEffect(1.5)
-                .frame(maxWidth: .infinity)
+                .tint(Theme.secondary)
+                .scaleEffect(1.2)
                 .padding(.vertical, 16)
         } else {
             Button(action: action) {
                 Label(title, systemImage: icon)
-                    .font(.headline)
+                    .font(Theme.Typography.heading(size: 16))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 16)
-                    .background(.white.opacity(0.15))
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16)
-                            .stroke(.white.opacity(0.25), lineWidth: 1)
-                    )
+                    .background(disabled ? Theme.neutral.opacity(0.1) : Theme.primary)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
                     .foregroundStyle(.white)
             }
             .disabled(disabled)
@@ -223,25 +226,25 @@ private struct GlassTextField: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
-                .foregroundStyle(.white.opacity(0.7))
+                .foregroundStyle(Theme.secondary)
                 .frame(width: 20)
 
             if isSecure {
-                SecureField("", text: $text, prompt: Text(placeholder).foregroundStyle(.white.opacity(0.5)))
-                    .foregroundStyle(.white)
+                SecureField("", text: $text, prompt: Text(placeholder).foregroundStyle(Theme.neutral.opacity(0.4)))
+                    .foregroundStyle(Theme.primary)
             } else {
-                TextField("", text: $text, prompt: Text(placeholder).foregroundStyle(.white.opacity(0.5)))
-                    .foregroundStyle(.white)
+                TextField("", text: $text, prompt: Text(placeholder).foregroundStyle(Theme.neutral.opacity(0.4)))
+                    .foregroundStyle(Theme.primary)
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
             }
         }
-        .padding(16)
-        .background(.white.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .padding(14)
+        .background(Color.white.opacity(0.9))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
         .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(.white.opacity(0.15), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Theme.neutral.opacity(0.1), lineWidth: 1)
         )
     }
 }

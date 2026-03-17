@@ -31,10 +31,15 @@ final class StreamingViewModel: ObservableObject {
         self.host = host
         self.port = port
         displayLayer.videoGravity = .resizeAspect
-
+        
         // Wire the parser to the hardware display layer
         parser.onFrameReady = { [weak self] sampleBuffer in
-            self?.displayLayer.enqueue(sampleBuffer)
+            guard let self = self else { return }
+            if self.displayLayer.isReadyForMoreMediaData {
+                self.displayLayer.enqueue(sampleBuffer)
+            } else if self.displayLayer.status == .failed {
+                print("Display Layer FAILED: \(String(describing: self.displayLayer.error))")
+            }
         }
     }
 
@@ -67,18 +72,30 @@ final class StreamingViewModel: ObservableObject {
             port: NWEndpoint.Port(integerLiteral: UInt16(port))
         )
         let params = NWParameters.tcp
+        
+        // Force IPv4 if we are seeing IPv6 connection issues on the Pi
+        if let ipOptions = params.defaultProtocolStack.internetProtocol as? NWProtocolIP.Options {
+            ipOptions.version = .v4
+        }
+        
         let newConnection = NWConnection(to: endpoint, using: params)
         connection = newConnection
 
         newConnection.stateUpdateHandler = { [weak self] state in
+            print("NWConnection State: \(state)")
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 switch state {
                 case .ready:
+                    print("TCP Stream Ready")
                     isConnecting = false
                     isConnected = true
                     receiveData()
-                case .failed, .cancelled:
+                case .failed(let error):
+                    print("TCP Stream Failed: \(error)")
+                    isConnected = false
+                    isConnecting = false
+                case .cancelled:
                     isConnected = false
                     isConnecting = false
                 default:
@@ -92,18 +109,27 @@ final class StreamingViewModel: ObservableObject {
     /// Recursively reads Annex-B H.264 data from the TCP connection and
     /// forwards it to the H264StreamParser.
     private func receiveData() {
-        connection?.receive(minimumIncompleteLength: 1, maximumLength: 1024 * 128) { [weak self] data, _, isComplete, error in
+        connection?.receive(minimumIncompleteLength: 1, maximumLength: 1024 * 1024) { [weak self] data, _, isComplete, error in
             guard let self else { return }
+            
+            if let error = error {
+                print("TCP Stream Receive Error: \(error)")
+            }
+
             if let data, !data.isEmpty {
-                // Pass the raw chunk of bytes to our parser.
-                // It will find NALU boundaries and call onFrameReady.
                 Task { @MainActor in
                     self.parser.process(data: data)
+                    
+                    // Periodically check layer status
+                    if self.displayLayer.status == .failed {
+                        print("Display Layer FAILED: \(String(describing: self.displayLayer.error))")
+                    }
                 }
             }
             if !isComplete && error == nil {
                 self.receiveData()
             } else {
+                print("TCP Stream Closed (Complete: \(isComplete))")
                 Task { @MainActor in self.isConnected = false }
             }
         }

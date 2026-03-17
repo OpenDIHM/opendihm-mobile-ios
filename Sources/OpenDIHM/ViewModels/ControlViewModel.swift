@@ -14,7 +14,7 @@ final class ControlViewModel: ObservableObject {
 
     @Published private(set) var isCapturing: Bool = false
     @Published private(set) var lastMessage: String?
-    @Published private(set) var lastMessageIsError: Bool = false
+    @Published var lastMessageIsError: Bool = false
 
     /// Last successfully captured DNG data — consumers can observe this
     /// to trigger file saving, reconstruction pipeline, etc.
@@ -41,5 +41,11 @@ final class ControlViewModel: ObservableObject {
             lastMessageIsError = true
             lastMessage = error.localizedDescription
         }
+    }
+
+    /// Resets the last status message and error state.
+    func clearMessage() {
+        lastMessage = nil
+        lastMessageIsError = false
     }
 }
