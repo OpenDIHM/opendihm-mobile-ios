@@ -21,6 +21,9 @@ targets:
       - Sources/OpenDIHM
     info:
       path: Sources/OpenDIHM/Resources/Info.plist
+      properties:
+        UILaunchScreen: {}
+        UIRequiresFullScreen: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.opendihm.mobile-ios
