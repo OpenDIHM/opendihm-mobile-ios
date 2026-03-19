@@ -1,191 +1,233 @@
 /// ConnectionView.swift
-/// BLE scanning + Wi-Fi provisioning UI, with an optional Direct Connect
-/// bypass for development and ethernet-connected setups.
-///
+/// BLE scanning + Wi-Fi provisioning UI with an introduction-like sequence.
 /// Guides the user through:
-///   1. BLE mode: Enter Wi-Fi credentials → scan → provision Pi.
-///   2. Direct Connect mode: Enter Pi IP/hostname directly → verify API → proceed.
+///   1. Wi-Fi credentials entry
+///   2. Bluetooth connection progress
+///   3. Success & automatic transition
 
 import SwiftUI
 
-/// Selects which connection path the user wants.
-private enum ConnectionMode: String, CaseIterable {
-    case bluetooth = "Bluetooth"
-    case direct = "Direct IP"
-
-    var icon: String {
-        switch self {
-        case .bluetooth: return "dot.radiowaves.left.and.right"
-        case .direct:    return "network"
-        }
-    }
-}
-
 struct ConnectionView: View {
-    // @StateObject private var bleViewModel  = ConnectionViewModel()
-    @StateObject private var directViewModel = DirectConnectViewModel()
+    @StateObject private var viewModel = ConnectionViewModel()
     @EnvironmentObject private var router: AppRouter
 
-    @State private var mode: ConnectionMode = .direct   // default to Direct for dev convenience
-
     var body: some View {
-        NavigationStack {
-            ZStack {
-                // Background
-                Theme.background.ignoresSafeArea()
-
+        ZStack {
+            Theme.background.ignoresSafeArea()
+            
+            VStack(spacing: 0) {
+                // Header (Skip button is removed from here)
+                Spacer() // This pushes everything down comfortably
+                
                 VStack(spacing: 20) {
-                    // Logo only
+                    // Logo
                     if let uiImage = UIImage(contentsOfFile: "/Users/gokhankocmarli/Projects/opendihm/opendihm-branding/logos/opendihm-horizontal.jpeg") {
                         Image(uiImage: uiImage)
                             .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(height: 50)
-                            .padding(.top, 40)
+                            .scaledToFit()
+                            .frame(maxWidth: 200, maxHeight: 50)
+                            .padding(.top, 10)
                     } else {
                         Image(systemName: "microscope")
                             .font(.system(size: 40))
                             .foregroundStyle(Theme.primary)
-                            .padding(.top, 40)
+                            .padding(.top, 10)
                     }
-
-                    // Mode picker - closer to the panel
-                    Picker("Connection Mode", selection: $mode) {
-                        ForEach(ConnectionMode.allCases, id: \.self) { m in
-                            Label(m.rawValue, systemImage: m.icon).tag(m)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(maxWidth: 400)
-                    .tint(Theme.secondary)
-
-                    // Panel for selected mode - Wider and simpler for Landscape
-                    Group {
-                        switch mode {
-                        case .bluetooth:
-                            VStack(spacing: 8) {
-                                Image(systemName: "bluetooth")
-                                    .font(.title2)
-                                    .foregroundStyle(Theme.secondary)
-                                Text("Bluetooth Provisioning")
-                                    .font(Theme.Typography.heading(size: 14))
-                                Text("Scanning for nearby devices...")
-                                    .font(Theme.Typography.body(size: 11))
+                    
+                    Text("Device Setup")
+                        .font(Theme.Typography.heading(size: 24))
+                        .foregroundStyle(Theme.primary)
+                        .padding(.bottom, 10)
+                    
+                    // Main Setup Panel
+                    VStack(spacing: 24) {
+                        if viewModel.currentStep == 0 {
+                            // Step 0: Entry
+                            VStack(spacing: 16) {
+                                Text("Connect to Wi-Fi")
+                                    .font(Theme.Typography.heading(size: 18))
+                                    .foregroundStyle(Theme.primary)
+                                    .padding(.top, 10)
+                                
+                                Text("Enter your Wi-Fi details so the microscope can join your network.")
+                                    .font(Theme.Typography.body(size: 14))
                                     .foregroundStyle(Theme.neutral)
+                                    .multilineTextAlignment(.center)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .padding(.horizontal, 20)
+                                    .padding(.bottom, 10)
+                                
+                                GlassTextField(
+                                    placeholder: "Wi-Fi Network Name",
+                                    text: $viewModel.ssid,
+                                    icon: "wifi"
+                                )
+                                GlassTextField(
+                                    placeholder: "Wi-Fi Password",
+                                    text: $viewModel.password,
+                                    icon: "lock",
+                                    isSecure: true
+                                )
+                                
+                                if !viewModel.statusMessage.isEmpty {
+                                    statusText(viewModel.statusMessage, isError: viewModel.isError)
+                                }
+                                
+                                actionButton(
+                                    title: "Continue",
+                                    icon: "arrow.right.circle.fill",
+                                    isLoading: viewModel.isConnecting,
+                                    disabled: viewModel.ssid.isEmpty || viewModel.password.isEmpty
+                                ) {
+                                    withAnimation {
+                                        viewModel.connect()
+                                    }
+                                }
+                                
+                                // Skip Bluetooth moved beneath
+                                Button(action: {
+                                    router.didConnect(host: "opendihm")
+                                }) {
+                                    Text("Skip Bluetooth")
+                                        .font(Theme.Typography.heading(size: 16))
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 16)
+                                        .background(Theme.background) // match native background
+                                        .foregroundStyle(Theme.primary)
+                                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 12)
+                                                .stroke(Theme.primary, lineWidth: 1.5)
+                                        )
+                                }
+                                .padding(.top, 4)
                             }
-                        case .direct:
-                            DirectConnectPanel(viewModel: directViewModel)
+                        } else {
+                            // Progress Steps (1-4)
+                            VStack(spacing: 30) {
+                                ZStack {
+                                    Circle()
+                                        .stroke(Theme.secondary.opacity(0.2), lineWidth: 8)
+                                        .frame(width: 120, height: 120)
+                                    
+                                    Circle()
+                                        .trim(from: 0, to: CGFloat(viewModel.currentStep) / CGFloat(viewModel.totalSteps))
+                                        .stroke(Theme.secondary, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                                        .frame(width: 120, height: 120)
+                                        .rotationEffect(.degrees(-90))
+                                        .animation(.spring(response: 0.6, dampingFraction: 0.8), value: viewModel.currentStep)
+                                        
+                                    Image(systemName: stepIcon(for: viewModel.currentStep))
+                                        .font(.system(size: 40))
+                                        .foregroundStyle(Theme.primary)
+                                        .contentTransition(.symbolEffect(.replace))
+                                }
+                                
+                                VStack(spacing: 8) {
+                                    Text(viewModel.statusMessage)
+                                        .font(Theme.Typography.heading(size: 16))
+                                        .foregroundStyle(Theme.primary)
+                                        .multilineTextAlignment(.center)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                    
+                                    if viewModel.isError {
+                                        Button("Try Again") {
+                                            viewModel.connect()
+                                        }
+                                        .font(Theme.Typography.body(size: 14))
+                                        .foregroundStyle(.blue)
+                                        .padding(.top, 10)
+                                        
+                                        Button(action: {
+                                            router.didConnect(host: "opendihm")
+                                        }) {
+                                            Text("Skip Bluetooth")
+                                                .font(Theme.Typography.heading(size: 16))
+                                                .frame(maxWidth: .infinity)
+                                                .padding(.vertical, 16)
+                                                .background(Theme.background) // match native background
+                                                .foregroundStyle(Theme.primary)
+                                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 12)
+                                                        .stroke(Theme.primary, lineWidth: 1.5)
+                                                )
+                                        }
+                                        .padding(.horizontal, 30)
+                                        .padding(.top, 8)
+                                    }
+                                }
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: 300)
+                            .transition(.opacity.combined(with: .scale(scale: 0.9)))
                         }
                     }
-                    .padding(32)
-                    .frame(maxWidth: 500)
-                    .background(Color.white.opacity(0.98))
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
-                    .shadow(color: Color.black.opacity(0.08), radius: 20, x: 0, y: 10)
-                    .transition(.opacity.combined(with: .move(edge: .bottom)))
-                    .animation(.spring(), value: mode)
-
-                    Spacer()
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-            .navigationBarHidden(true)
-            .alert("Error", isPresented: $directViewModel.lastMessageIsError, actions: {
-                Button("OK", role: .cancel) { directViewModel.clearMessage() }
-            }, message: {
-                if !directViewModel.statusMessage.isEmpty {
-                    Text(directViewModel.statusMessage)
-                }
-            })
-            /*
-            .onChange(of: bleViewModel.isProvisioned) {
-                if bleViewModel.isProvisioned {
-                    router.didConnect(host: bleViewModel.resolvedHost)
+                    .padding(.horizontal, 30)
+                    .animation(.spring(response: 0.5, dampingFraction: 0.8), value: viewModel.currentStep)
+                    
+                    Spacer().frame(height: 40)
+                    
+                    // Progress Bar at bottom
+                    ContinuousProgressBar(currentStep: viewModel.currentStep, totalSteps: viewModel.totalSteps)
+                        .padding(.horizontal, 40)
+                        .padding(.bottom, 60)
                 }
             }
-            */
-            .onChange(of: directViewModel.isConnected) {
-                if directViewModel.isConnected {
-                    router.didConnect(host: directViewModel.host)
+        }
+        .onChange(of: viewModel.isProvisioned) {
+            if viewModel.isProvisioned {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    router.didConnect(host: viewModel.resolvedHost)
                 }
             }
         }
     }
+    
+    private func stepIcon(for step: Int) -> String {
+        switch step {
+        case 0, 1: return "magnifyingglass"
+        case 2:    return "bluetooth"
+        case 3:    return "wifi"
+        case 4:    return "checkmark.circle.fill"
+        default:   return "exclamationmark.triangle"
+        }
+    }
 }
 
-// MARK: - BLE Panel
+// MARK: - Components
 
-private struct BLEConnectionPanel: View {
-    @ObservedObject var viewModel: ConnectionViewModel
-
+private struct ContinuousProgressBar: View {
+    let currentStep: Int
+    let totalSteps: Int
+    
     var body: some View {
-        VStack(spacing: 16) {
-            GlassTextField(
-                placeholder: "Wi-Fi Network Name (SSID)",
-                text: $viewModel.ssid,
-                icon: "wifi"
-            )
-            GlassTextField(
-                placeholder: "Wi-Fi Password",
-                text: $viewModel.password,
-                icon: "lock",
-                isSecure: true
-            )
-
-            if !viewModel.statusMessage.isEmpty {
-                statusText(viewModel.statusMessage, isError: viewModel.isError)
-            }
-
-            actionButton(
-                title: "Connect via Bluetooth",
-                icon: "dot.radiowaves.left.and.right",
-                isLoading: viewModel.isConnecting,
-                disabled: viewModel.ssid.isEmpty || viewModel.password.isEmpty
-            ) {
-                viewModel.connect()
+        GeometryReader { geometry in
+            ZStack(alignment: .leading) {
+                // Background track
+                Capsule()
+                    .fill(Theme.neutral.opacity(0.15))
+                    .frame(height: 8)
+                
+                // Progress fill
+                Capsule()
+                    .fill(Theme.secondary)
+                    .frame(width: geometry.size.width * CGFloat(currentStep) / CGFloat(totalSteps), height: 8)
+                    .animation(.easeInOut(duration: 0.4), value: currentStep)
             }
         }
-        .padding(.horizontal, 24)
+        .frame(height: 8)
     }
 }
 
-// MARK: - Direct Connect Panel
-
-private struct DirectConnectPanel: View {
-    @ObservedObject var viewModel: DirectConnectViewModel
-
-    var body: some View {
-        VStack(spacing: 16) {
-            GlassTextField(
-                placeholder: "IP or hostname",
-                text: $viewModel.host,
-                icon: "network"
-            )
-
-            actionButton(
-                title: "Connect Directly",
-                icon: "arrow.right.circle.fill",
-                isLoading: viewModel.isConnecting,
-                disabled: viewModel.host.isEmpty
-            ) {
-                Task { await viewModel.connect() }
-            }
-        }
-    }
-}
-// MARK: - Shared helper views
-
-/// Compact status text used by both panels.
 @MainActor
 private func statusText(_ message: String, isError: Bool) -> some View {
     Text(message)
-        .font(.footnote)
-        .foregroundStyle(isError ? .red : .white.opacity(0.8))
+        .font(Theme.Typography.body(size: 12))
+        .foregroundStyle(isError ? .red : .gray)
         .multilineTextAlignment(.center)
         .transition(.opacity.combined(with: .move(edge: .bottom)))
 }
 
-/// Shared connect button with loading state.
 @MainActor
 private func actionButton(
     title: String,
@@ -202,20 +244,23 @@ private func actionButton(
                 .padding(.vertical, 16)
         } else {
             Button(action: action) {
-                Label(title, systemImage: icon)
-                    .font(Theme.Typography.heading(size: 16))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-                    .background(disabled ? Theme.neutral.opacity(0.1) : Theme.primary)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .foregroundStyle(.white)
+                Label {
+                    Text(title)
+                        .font(Theme.Typography.heading(size: 16))
+                } icon: {
+                    Image(systemName: icon)
+                        .font(.system(size: 16))
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
+                .background(disabled ? Theme.neutral.opacity(0.1) : Theme.primary)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .foregroundStyle(disabled ? Theme.neutral.opacity(0.5) : .white)
             }
             .disabled(disabled)
         }
     }
 }
-
-// MARK: - Reusable Glassmorphism TextField
 
 private struct GlassTextField: View {
     let placeholder: String
@@ -226,14 +271,17 @@ private struct GlassTextField: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
+                .font(.system(size: 16))
                 .foregroundStyle(Theme.secondary)
                 .frame(width: 20)
 
             if isSecure {
-                SecureField("", text: $text, prompt: Text(placeholder).foregroundStyle(Theme.neutral.opacity(0.4)))
+                SecureField("", text: $text, prompt: Text(placeholder).font(Theme.Typography.body(size: 16)).foregroundStyle(Theme.neutral.opacity(0.4)))
+                    .font(Theme.Typography.body(size: 16))
                     .foregroundStyle(Theme.primary)
             } else {
-                TextField("", text: $text, prompt: Text(placeholder).foregroundStyle(Theme.neutral.opacity(0.4)))
+                TextField("", text: $text, prompt: Text(placeholder).font(Theme.Typography.body(size: 16)).foregroundStyle(Theme.neutral.opacity(0.4)))
+                    .font(Theme.Typography.body(size: 16))
                     .foregroundStyle(Theme.primary)
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)

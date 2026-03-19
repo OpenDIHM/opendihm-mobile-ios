@@ -18,10 +18,13 @@ final class ConnectionViewModel: ObservableObject {
     @Published private(set) var isProvisioned: Bool = false
     @Published private(set) var isError: Bool = false
 
+    /// Progress steps for the pairing UI
+    @Published private(set) var currentStep: Int = 0
+    let totalSteps: Int = 4
+
     /// IP of the Pi resolved after successful provisioning.
-    /// Currently derived from the BLE status message; a more robust
-    /// implementation would use mDNS (Bonjour) discovery post-connection.
-    private(set) var resolvedHost: String = ""
+    /// Defaulting to opendihm per user requirement.
+    private(set) var resolvedHost: String = "opendihm"
 
     // MARK: - Dependencies
 
@@ -53,26 +56,33 @@ final class ConnectionViewModel: ObservableObject {
                 switch state {
                 case .idle:
                     isConnecting = false
+                    currentStep = 0
                 case .scanning:
                     statusMessage = "Scanning for OpenDIHM device..."
+                    currentStep = 1
                 case .connecting:
                     statusMessage = "Found it! Connecting..."
+                    currentStep = 2
                 case .connected:
                     statusMessage = "Connected. Sending Wi-Fi credentials..."
+                    currentStep = 2
                 case .sendingCredentials:
                     statusMessage = "Sending credentials..."
+                    currentStep = 3
                 case .waitingForWiFi:
                     statusMessage = bleManager.statusMessage
+                    currentStep = 3
                 case .provisioned:
                     statusMessage = "✓ Connected to Wi-Fi!"
                     isConnecting = false
                     isProvisioned = true
-                    // TODO: Replace with mDNS resolution when implemented
-                    resolvedHost = "opendihm.local"
+                    currentStep = 4
+                    resolvedHost = "opendihm"
                 case .failed(let reason):
                     statusMessage = reason
                     isError = true
                     isConnecting = false
+                    currentStep = 0
                 }
             }
             .store(in: &cancellables)
