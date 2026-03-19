@@ -11,6 +11,7 @@ set -euo pipefail
 # Configuration
 # ==============================================================================
 
+readonly MODE="${1:-sim}"
 readonly APP_BUNDLE_ID="com.opendihm.mobile-ios"
 readonly SCHEME="OpenDIHM"
 readonly BUILD_DIR="${PWD}/build"
@@ -122,9 +123,23 @@ deploy_and_run() {
 main() {
     check_dependencies
     
+    if [[ "${MODE}" != "sim" && "${MODE}" != "deploy" ]]; then
+        log_error "Usage: ./dev.sh [sim|deploy]"
+        exit 1
+    fi
+    
     cleanup
     generate_project
     
+    if [[ "${MODE}" == "deploy" ]]; then
+        log_warn "Physical device deployment requires Code Signing via Apple Developer."
+        log_info "Opening Xcode to handle code signing and physical deployment natively..."
+        open "${SCHEME}.xcodeproj"
+        log_success "Project generated and opened in Xcode!"
+        exit 0
+    fi
+    
+    # Simulator flow
     local simulator_id
     simulator_id=$(find_simulator)
     
