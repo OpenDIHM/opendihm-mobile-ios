@@ -21,24 +21,12 @@ struct ConnectionView: View {
                 
                 VStack(spacing: 20) {
                     // Logo
-                    if let uiImage = UIImage(contentsOfFile: "/Users/gokhankocmarli/Projects/opendihm/opendihm-branding/logos/opendihm-horizontal.jpeg") {
-                        Image(uiImage: uiImage)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(maxWidth: 200, maxHeight: 50)
-                            .padding(.top, 10)
-                    } else {
-                        Image(systemName: "microscope")
-                            .font(.system(size: 40))
-                            .foregroundStyle(Theme.primary)
-                            .padding(.top, 10)
-                    }
-                    
-                    Text("Device Setup")
-                        .font(Theme.Typography.heading(size: 24))
-                        .foregroundStyle(Theme.primary)
-                        .padding(.bottom, 10)
-                    
+                    Image("LogoHorizontal")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: 200, maxHeight: 50)
+                        .padding(.top, 10)
+
                     // Main Setup Panel
                     VStack(spacing: 24) {
                         if viewModel.currentStep == 0 {
@@ -88,7 +76,7 @@ struct ConnectionView: View {
                                 Button(action: {
                                     router.didConnect(host: "opendihm")
                                 }) {
-                                    Text("Skip Bluetooth")
+                                    Text("Microscope is already connected")
                                         .font(Theme.Typography.heading(size: 16))
                                         .frame(maxWidth: .infinity)
                                         .padding(.vertical, 16)

@@ -58,8 +58,12 @@ final class ControlViewModel: ObservableObject {
         pollingTask?.cancel()
         pollingTask = Task {
             while !Task.isCancelled {
-                if let status = try? await apiClient.getSystemStatus() {
+                do {
+                    let status = try await apiClient.getSystemStatus()
+                    print("OpenDIHM Polling Status: \(status)")
                     self.systemStatus = status
+                } catch {
+                    print("OpenDIHM Polling Error: \(error)")
                 }
                 try? await Task.sleep(nanoseconds: 5_000_000_000) // 5 seconds
             }

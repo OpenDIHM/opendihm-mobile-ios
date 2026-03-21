@@ -86,12 +86,46 @@ final class MicroscopeAPIClient {
     // MARK: - Private Helpers
 
     private func resolve(_ path: String) throws -> URL {
-        guard let base = config.apiBaseURL,
-              let url = URL(string: path, relativeTo: base)
-        else {
+        guard let base = config.apiBaseURL else { throw APIError.invalidURL }
+
+        let resolvedHost = ipv4Address(for: config.host)
+        let resolvedBaseString = base.absoluteString.replacingOccurrences(of: config.host, with: resolvedHost)
+        
+        guard let resolvedBase = URL(string: resolvedBaseString),
+              let url = URL(string: path, relativeTo: resolvedBase) else {
             throw APIError.invalidURL
         }
         return url
+    }
+    
+    /// Low-level resolver to prefer IPv4 (AF_INET) for a given hostname.
+    private func ipv4Address(for host: String) -> String {
+        // If it's already an IP, return it
+        if host.range(of: "^[0-9.]+$", options: .regularExpression) != nil { return host }
+        
+        var hints = addrinfo(
+            ai_flags: AI_DEFAULT,
+            ai_family: AF_INET, // Force IPv4 (AF_INET)
+            ai_socktype: SOCK_STREAM,
+            ai_protocol: 0,
+            ai_addrlen: 0,
+            ai_canonname: nil,
+            ai_addr: nil,
+            ai_next: nil
+        )
+        
+        var res: UnsafeMutablePointer<addrinfo>?
+        let status = getaddrinfo(host, nil, &hints, &res)
+        defer { if res != nil { freeaddrinfo(res) } }
+        
+        if status == 0, let first = res {
+            var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+            if getnameinfo(first.pointee.ai_addr, first.pointee.ai_addrlen, &hostname, socklen_t(hostname.count), nil, 0, NI_NUMERICHOST) == 0 {
+                return String(cString: hostname)
+            }
+        }
+        
+        return host // Fallback to original hostname if resolution fails
     }
 
     private func get<T: Decodable>(url: URL) async throws -> T {

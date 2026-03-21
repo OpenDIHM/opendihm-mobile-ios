@@ -7,25 +7,21 @@ struct ControlView: View {
     @EnvironmentObject private var router: AppRouter
     @StateObject private var viewModel = ControlViewModel()
 
-    @State private var isInfoPaneExpanded: Bool = true
-
     var body: some View {
         ZStack {
             // Base background ensures no white gaps during transitions
             Theme.background.ignoresSafeArea()
 
             HStack(spacing: 0) {
-                // Left Column: Navigation & Controls
+                // Left Column: Navigation
                 VStack(spacing: 24) {
                     brandingHeader
-                    
                     Spacer()
-                    
                     disconnectButton
                 }
                 .padding(.vertical, 24)
                 .safeAreaPadding(.leading) 
-                .frame(width: 95)
+                .frame(width: 70)
                 .background(Theme.primary.ignoresSafeArea())
                 .foregroundStyle(.white)
 
@@ -37,48 +33,23 @@ struct ControlView: View {
 
                 // Right Column: Information Panel
                 VStack(spacing: 16) {
-                    toggleInfoButton
-                    
-                    if isInfoPaneExpanded {
-                        VStack(spacing: 16) {
-                            StatusPanel(status: viewModel.systemStatus)
-                            
-                            Divider().background(Color.white.opacity(0.3))
-                            
-                            HStack(spacing: 16) {
-                                zLevelMenu
-                                
-                                CaptureButton(
-                                    isCapturing: viewModel.isCapturing,
-                                    action: { Task { await viewModel.capture() } }
-                                )
-                            }
+                    VStack(spacing: 16) {
+                        StatusPanel(status: viewModel.systemStatus)
+                        Divider().background(Color.white.opacity(0.3))
+                        HStack(spacing: 16) {
+                            zLevelMenu
+                            CaptureButton(
+                                isCapturing: viewModel.isCapturing,
+                                action: { Task { await viewModel.capture() } }
+                            )
                         }
-                        .transition(.move(edge: .trailing).combined(with: .opacity))
-                    } else {
-                        VStack(spacing: 20) {
-                            CompactStatusPanel()
-                            
-                            HStack(spacing: 8) {
-                                zLevelLabel
-                                    .scaleEffect(0.8)
-                                
-                                CaptureButton(
-                                    isCapturing: viewModel.isCapturing,
-                                    action: { Task { await viewModel.capture() } }
-                                )
-                                .scaleEffect(0.8)
-                            }
-                        }
-                        .transition(.move(edge: .leading).combined(with: .opacity))
                     }
-                }
-                .padding(.vertical, 32)
-                .padding(.horizontal, isInfoPaneExpanded ? 16 : 12)
+            }
+                .padding(.vertical, 16)
+                .padding(.horizontal, 16)
                 .safeAreaPadding(.trailing)
-                .frame(width: isInfoPaneExpanded ? 220 : 110)
+                .frame(width: 220)
                 .background(Theme.background.ignoresSafeArea())
-                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isInfoPaneExpanded)
             }
         }
         .background(Color.black.ignoresSafeArea())
@@ -135,17 +106,6 @@ struct ControlView: View {
         )
     }
 
-    private var toggleInfoButton: some View {
-        Button(action: { isInfoPaneExpanded.toggle() }) {
-            Image(systemName: isInfoPaneExpanded ? "xmark.circle" : "info.circle.fill")
-                .font(.title2)
-                .foregroundStyle(Theme.primary)
-                .frame(width: 44, height: 44)
-                .background(Color.white.opacity(0.6))
-                .clipShape(Circle())
-        }
-    }
-
     private var disconnectButton: some View {
         Button(action: { router.disconnect() }) {
             Image(systemName: "power")
@@ -162,7 +122,7 @@ private struct StatusPanel: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            StatusItem(icon: "thermometer.medium", label: "Pi Temp", value: status.map { String(format: "%.1f°C", $0.temperatureC) } ?? "--", color: .orange)
+            StatusItem(icon: "thermometer.medium", label: "Temperature", value: status.map { String(format: "%.1f°C", $0.temperatureC) } ?? "--", color: .orange)
             StatusItem(icon: "antenna.radiowaves.left.and.right", label: "Signal", value: status.map { String(format: "%.0f dBm", $0.wifiSignalDbm) } ?? "--", color: Theme.secondary)
             StatusItem(icon: "bolt.fill", label: "Laser", value: status?.laserOn == true ? "ON" : "OFF", color: .red)
             StatusItem(icon: "stopwatch", label: "Exposure", value: status.map { "\($0.exposureTimeUs / 1000)ms" } ?? "--", color: .green)
@@ -214,6 +174,7 @@ private struct StatusItem: View {
                 Text(value)
                     .font(Theme.Typography.mono(size: 11))
                     .bold()
+                    .foregroundStyle(Theme.neutral)
             }
             Spacer()
         }

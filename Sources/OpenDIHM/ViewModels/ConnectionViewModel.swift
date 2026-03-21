@@ -23,8 +23,8 @@ final class ConnectionViewModel: ObservableObject {
     let totalSteps: Int = 4
 
     /// IP of the Pi resolved after successful provisioning.
-    /// Defaulting to opendihm per user requirement.
-    private(set) var resolvedHost: String = "opendihm"
+    /// Defaulting to opendihm.local per user requirement.
+    private(set) var resolvedHost: String = "opendihm.local"
 
     // MARK: - Dependencies
 
@@ -77,7 +77,7 @@ final class ConnectionViewModel: ObservableObject {
                     isConnecting = false
                     isProvisioned = true
                     currentStep = 4
-                    resolvedHost = "opendihm"
+                    resolvedHost = "opendihm.local"
                 case .failed(let reason):
                     statusMessage = reason
                     isError = true
