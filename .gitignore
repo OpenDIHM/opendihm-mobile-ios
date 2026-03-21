@@ -70,3 +70,4 @@ OpenDIHM.xcodeproj/project.pbxproj
 xcuserdata/
 *.xcuserstate
 DerivedData/
+.agent_archives
