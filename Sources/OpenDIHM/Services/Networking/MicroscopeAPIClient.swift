@@ -45,6 +45,13 @@ final class MicroscopeAPIClient {
         return try await get(url: url)
     }
 
+    /// Retrieves the current hardware and system telemetry from the microscope.
+    /// - Returns: `SystemStatusResponse` containing temperatures, storage, memory, and laser state.
+    func getSystemStatus() async throws -> SystemStatusResponse {
+        let url = try resolve("/system/status")
+        return try await get(url: url)
+    }
+
     /// Triggers a RAW DNG hologram capture.
     /// - Parameter zMetadata: Z-distance metadata in microns.
     /// - Returns: Raw DNG `Data` (application/octet-stream).
