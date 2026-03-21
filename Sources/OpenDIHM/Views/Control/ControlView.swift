@@ -23,9 +23,10 @@ struct ControlView: View {
                     
                     disconnectButton
                 }
-                .padding(.vertical, 32)
-                .frame(width: 65)
-                .background(Theme.primary.ignoresSafeArea(edges: .vertical))
+                .padding(.vertical, 24)
+                .safeAreaPadding(.leading) // Protect from the side notch in landscape
+                .frame(width: 85)
+                .background(Theme.primary.ignoresSafeArea())
                 .foregroundStyle(.white)
 
                 // Center Column: Live Video Feed
@@ -44,12 +45,14 @@ struct ControlView: View {
                             
                             Divider().background(Color.white.opacity(0.3))
                             
-                            zLevelMenu
-                            
-                            CaptureButton(
-                                isCapturing: viewModel.isCapturing,
-                                action: { Task { await viewModel.capture() } }
-                            )
+                            HStack(spacing: 16) {
+                                zLevelMenu
+                                
+                                CaptureButton(
+                                    isCapturing: viewModel.isCapturing,
+                                    action: { Task { await viewModel.capture() } }
+                                )
+                            }
                         }
                         .transition(.move(edge: .trailing).combined(with: .opacity))
                     } else {
@@ -69,12 +72,14 @@ struct ControlView: View {
                     }
                 }
                 .padding(.vertical, 32)
-                .padding(.horizontal, isInfoPaneExpanded ? 12 : 8)
-                .frame(width: isInfoPaneExpanded ? 150 : 65)
-                .background(Theme.background.ignoresSafeArea(edges: .vertical))
+                .padding(.horizontal, isInfoPaneExpanded ? 16 : 8)
+                .safeAreaPadding(.trailing) // Protect from device corners/curvature
+                .frame(width: isInfoPaneExpanded ? 220 : 65)
+                .background(Theme.background.ignoresSafeArea())
                 .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isInfoPaneExpanded)
             }
         }
+        .background(Color.black.ignoresSafeArea())
         .ignoresSafeArea()
         .navigationBarHidden(true)
         .onAppear {
