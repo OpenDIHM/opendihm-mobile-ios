@@ -24,8 +24,8 @@ struct ControlView: View {
                     disconnectButton
                 }
                 .padding(.vertical, 24)
-                .safeAreaPadding(.leading) // Protect from the side notch in landscape
-                .frame(width: 85)
+                .safeAreaPadding(.leading) 
+                .frame(width: 95)
                 .background(Theme.primary.ignoresSafeArea())
                 .foregroundStyle(.white)
 
@@ -59,22 +59,24 @@ struct ControlView: View {
                         VStack(spacing: 20) {
                             CompactStatusPanel()
                             
-                            zLevelLabel
+                            HStack(spacing: 8) {
+                                zLevelLabel
+                                    .scaleEffect(0.8)
+                                
+                                CaptureButton(
+                                    isCapturing: viewModel.isCapturing,
+                                    action: { Task { await viewModel.capture() } }
+                                )
                                 .scaleEffect(0.8)
-                            
-                            CaptureButton(
-                                isCapturing: viewModel.isCapturing,
-                                action: { Task { await viewModel.capture() } }
-                            )
-                            .scaleEffect(0.8)
+                            }
                         }
                         .transition(.move(edge: .leading).combined(with: .opacity))
                     }
                 }
                 .padding(.vertical, 32)
-                .padding(.horizontal, isInfoPaneExpanded ? 16 : 8)
-                .safeAreaPadding(.trailing) // Protect from device corners/curvature
-                .frame(width: isInfoPaneExpanded ? 220 : 65)
+                .padding(.horizontal, isInfoPaneExpanded ? 16 : 12)
+                .safeAreaPadding(.trailing)
+                .frame(width: isInfoPaneExpanded ? 220 : 110)
                 .background(Theme.background.ignoresSafeArea())
                 .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isInfoPaneExpanded)
             }
