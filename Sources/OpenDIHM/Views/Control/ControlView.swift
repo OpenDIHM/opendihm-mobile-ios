@@ -21,15 +21,6 @@ struct ControlView: View {
                     
                     Spacer()
                     
-                    zLevelMenu
-                    
-                    CaptureButton(
-                        isCapturing: viewModel.isCapturing,
-                        action: { Task { await viewModel.capture() } }
-                    )
-                    
-                    Spacer()
-                    
                     disconnectButton
                 }
                 .padding(.vertical, 32)
@@ -48,14 +39,34 @@ struct ControlView: View {
                     toggleInfoButton
                     
                     if isInfoPaneExpanded {
-                        StatusPanel(status: viewModel.systemStatus)
-                            .transition(.move(edge: .trailing).combined(with: .opacity))
+                        VStack(spacing: 16) {
+                            StatusPanel(status: viewModel.systemStatus)
+                            
+                            Divider().background(Color.white.opacity(0.3))
+                            
+                            zLevelMenu
+                            
+                            CaptureButton(
+                                isCapturing: viewModel.isCapturing,
+                                action: { Task { await viewModel.capture() } }
+                            )
+                        }
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
                     } else {
-                        CompactStatusPanel()
-                            .transition(.move(edge: .leading).combined(with: .opacity))
+                        VStack(spacing: 20) {
+                            CompactStatusPanel()
+                            
+                            zLevelLabel
+                                .scaleEffect(0.8)
+                            
+                            CaptureButton(
+                                isCapturing: viewModel.isCapturing,
+                                action: { Task { await viewModel.capture() } }
+                            )
+                            .scaleEffect(0.8)
+                        }
+                        .transition(.move(edge: .leading).combined(with: .opacity))
                     }
-                    
-                    Spacer()
                 }
                 .padding(.vertical, 32)
                 .padding(.horizontal, isInfoPaneExpanded ? 12 : 8)
@@ -82,10 +93,10 @@ struct ControlView: View {
     }
 
     private var brandingHeader: some View {
-        Image("LogoVertical")
+        Image("LogoSymbol")
             .resizable()
             .scaledToFit()
-            .frame(width: 44, height: 44)
+            .frame(width: 38, height: 38)
             .padding(.top, 8)
     }
 

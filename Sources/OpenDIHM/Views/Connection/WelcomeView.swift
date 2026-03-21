@@ -15,7 +15,7 @@ struct WelcomeView: View {
                     Image("LogoHorizontal")
                         .resizable()
                         .scaledToFit()
-                        .frame(maxWidth: 200, maxHeight: 50)
+                        .frame(maxWidth: 280, maxHeight: 80)
                         .padding(.bottom, 20)
                     
                     Text("Welcome!")
