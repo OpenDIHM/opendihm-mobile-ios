@@ -48,7 +48,7 @@ struct ControlView: View {
                     toggleInfoButton
                     
                     if isInfoPaneExpanded {
-                        StatusPanel()
+                        StatusPanel(status: viewModel.systemStatus)
                             .transition(.move(edge: .trailing).combined(with: .opacity))
                     } else {
                         CompactStatusPanel()
@@ -66,6 +66,12 @@ struct ControlView: View {
         }
         .ignoresSafeArea()
         .navigationBarHidden(true)
+        .onAppear {
+            viewModel.startStatusPolling()
+        }
+        .onDisappear {
+            viewModel.stopStatusPolling()
+        }
         .alert("Error", isPresented: $viewModel.lastMessageIsError, actions: {
             Button("OK", role: .cancel) { viewModel.clearMessage() }
         }, message: {
@@ -76,13 +82,11 @@ struct ControlView: View {
     }
 
     private var brandingHeader: some View {
-        VStack(spacing: 0) {
-            Text("O")
-                .font(Theme.Typography.heading(size: 16))
-            Text("D")
-                .font(Theme.Typography.heading(size: 16))
-                .foregroundStyle(Theme.secondary)
-        }
+        Image("LogoVertical")
+            .resizable()
+            .scaledToFit()
+            .frame(width: 44, height: 44)
+            .padding(.top, 8)
     }
 
     private var zLevelMenu: some View {
@@ -136,14 +140,16 @@ struct ControlView: View {
 // MARK: - Sub-components
 
 private struct StatusPanel: View {
+    let status: SystemStatusResponse?
+
     var body: some View {
         VStack(spacing: 12) {
-            StatusItem(icon: "thermometer.medium", label: "Pi Temp", value: "42°C", color: .orange)
-            StatusItem(icon: "antenna.radiowaves.left.and.right", label: "Signal", value: "-62dBm", color: Theme.secondary)
-            StatusItem(icon: "bolt.fill", label: "Laser", value: "Active", color: .red)
-            StatusItem(icon: "humidity", label: "Humidity", value: "45%", color: .blue)
-            StatusItem(icon: "stopwatch", label: "Exposure", value: "2ms", color: .green)
-            StatusItem(icon: "sdcard", label: "Storage", value: "14GB", color: Theme.neutral)
+            StatusItem(icon: "thermometer.medium", label: "Pi Temp", value: status.map { String(format: "%.1f°C", $0.temperatureC) } ?? "--", color: .orange)
+            StatusItem(icon: "antenna.radiowaves.left.and.right", label: "Signal", value: status.map { String(format: "%.0f dBm", $0.wifiSignalDbm) } ?? "--", color: Theme.secondary)
+            StatusItem(icon: "bolt.fill", label: "Laser", value: status?.laserOn == true ? "ON" : "OFF", color: .red)
+            StatusItem(icon: "stopwatch", label: "Exposure", value: status.map { "\($0.exposureTimeUs / 1000)ms" } ?? "--", color: .green)
+            StatusItem(icon: "memorychip", label: "RAM", value: status?.memoryLeftFormatted ?? "--", color: .purple)
+            StatusItem(icon: "sdcard", label: "Storage", value: status?.storageLeftFormatted ?? "--", color: Theme.neutral)
         }
         .padding(10)
         .background(Color.white.opacity(0.85))
@@ -158,8 +164,8 @@ private struct CompactStatusPanel: View {
             Image(systemName: "thermometer.medium").foregroundStyle(.orange)
             Image(systemName: "antenna.radiowaves.left.and.right").foregroundStyle(Theme.secondary)
             Image(systemName: "bolt.fill").foregroundStyle(.red)
-            Image(systemName: "humidity").foregroundStyle(.blue)
             Image(systemName: "stopwatch").foregroundStyle(.green)
+            Image(systemName: "memorychip").foregroundStyle(.purple)
             Image(systemName: "sdcard").foregroundStyle(Theme.neutral)
         }
         .font(.system(size: 16))

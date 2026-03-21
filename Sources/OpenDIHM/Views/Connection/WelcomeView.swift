@@ -12,18 +12,11 @@ struct WelcomeView: View {
                 
                 // Bottom anchored content
                 VStack(alignment: .leading, spacing: 20) {
-                    if let uiImage = UIImage(contentsOfFile: "/Users/gokhankocmarli/Projects/opendihm/opendihm-branding/logos/opendihm-horizontal.jpeg") {
-                        Image(uiImage: uiImage)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(maxWidth: 200, maxHeight: 50)
-                            .padding(.bottom, 20)
-                    } else {
-                        Image(systemName: "microscope")
-                            .font(.system(size: 60))
-                            .foregroundStyle(Theme.primary)
-                            .padding(.bottom, 20)
-                    }
+                    Image("LogoHorizontal")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: 200, maxHeight: 50)
+                        .padding(.bottom, 20)
                     
                     Text("Welcome!")
                         .font(Theme.Typography.heading(size: 40))

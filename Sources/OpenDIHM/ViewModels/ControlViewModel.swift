@@ -16,6 +16,9 @@ final class ControlViewModel: ObservableObject {
     @Published private(set) var lastMessage: String?
     @Published var lastMessageIsError: Bool = false
 
+    /// Real-time metrics fetched from the firmware API
+    @Published var systemStatus: SystemStatusResponse?
+
     /// Last successfully captured DNG data — consumers can observe this
     /// to trigger file saving, reconstruction pipeline, etc.
     @Published private(set) var capturedDNGData: Data?
@@ -23,6 +26,7 @@ final class ControlViewModel: ObservableObject {
     // MARK: - Dependencies
 
     private let apiClient = MicroscopeAPIClient()
+    private var pollingTask: Task<Void, Never>?
 
     // MARK: - Public API
 
@@ -47,5 +51,24 @@ final class ControlViewModel: ObservableObject {
     func clearMessage() {
         lastMessage = nil
         lastMessageIsError = false
+    }
+
+    /// Spawns a background task to constantly poll the hardware for live telemetry.
+    func startStatusPolling() {
+        pollingTask?.cancel()
+        pollingTask = Task {
+            while !Task.isCancelled {
+                if let status = try? await apiClient.getSystemStatus() {
+                    self.systemStatus = status
+                }
+                try? await Task.sleep(nanoseconds: 5_000_000_000) // 5 seconds
+            }
+        }
+    }
+
+    /// Terminates the background polling task.
+    func stopStatusPolling() {
+        pollingTask?.cancel()
+        pollingTask = nil
     }
 }
