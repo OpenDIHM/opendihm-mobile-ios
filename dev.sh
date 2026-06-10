@@ -15,6 +15,7 @@ readonly MODE="${1:-sim}"
 readonly APP_BUNDLE_ID="com.opendihm.mobile-ios"
 readonly SCHEME="OpenDIHM"
 readonly BUILD_DIR="${PWD}/build"
+readonly IPA_NAME="${SCHEME}.ipa"
 
 # Logging Colors
 readonly RED='\033[0;31m'
@@ -116,6 +117,27 @@ deploy_and_run() {
     xcrun simctl launch "${device_id}" "${APP_BUNDLE_ID}"
 }
 
+build_for_device() {
+    log_info "Building for arm64 device (unsignged)..."
+    xcodebuild build \
+        -scheme "${SCHEME}" \
+        -destination "generic/platform=iOS" \
+        CONFIGURATION_BUILD_DIR="${BUILD_DIR}" \
+        CODE_SIGNING_ALLOWED=NO \
+        -quiet
+}
+
+package_ipa() {
+    log_info "Packaging .app into .ipa..."
+    local payload_dir="${BUILD_DIR}/Payload"
+    mkdir -p "${payload_dir}"
+    cp -r "${BUILD_DIR}/${SCHEME}.app" "${payload_dir}/"
+    cd "${BUILD_DIR}" && zip -ry "${IPA_NAME}" "Payload/" >/dev/null
+    rm -rf "${payload_dir}"
+    log_success "IPA generated at: ${BUILD_DIR}/${IPA_NAME}"
+    ls -lh "${BUILD_DIR}/${IPA_NAME}"
+}
+
 # ==============================================================================
 # Main Entry Point
 # ==============================================================================
@@ -123,8 +145,8 @@ deploy_and_run() {
 main() {
     check_dependencies
     
-    if [[ "${MODE}" != "sim" && "${MODE}" != "deploy" ]]; then
-        log_error "Usage: ./dev.sh [sim|deploy]"
+    if [[ "${MODE}" != "sim" && "${MODE}" != "deploy" && "${MODE}" != "ipa" ]]; then
+        log_error "Usage: ./dev.sh [sim|deploy|ipa]"
         exit 1
     fi
     
@@ -136,6 +158,14 @@ main() {
         log_info "Opening Xcode to handle code signing and physical deployment natively..."
         open "${SCHEME}.xcodeproj"
         log_success "Project generated and opened in Xcode!"
+        exit 0
+    fi
+
+    if [[ "${MODE}" == "ipa" ]]; then
+        build_for_device
+        package_ipa
+        log_success "IPA build complete. Share ${BUILD_DIR}/${IPA_NAME} with your friend."
+        log_info "Reminder: Your friend must sign the IPA via Sideloadly (or similar) before installing."
         exit 0
     fi
     
