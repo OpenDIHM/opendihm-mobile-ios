@@ -5,7 +5,15 @@ import SwiftUI
 
 struct ControlView: View {
     @EnvironmentObject private var router: AppRouter
-    @StateObject private var viewModel = ControlViewModel()
+    @StateObject private var controlVM = ControlViewModel()
+    @StateObject private var streamVM: StreamingViewModel
+    @StateObject private var captureManager = CaptureManager()
+    @State private var showCaptures = false
+
+    init() {
+        let config = MicroscopeConfig.shared
+        _streamVM = StateObject(wrappedValue: StreamingViewModel(host: config.host, port: config.streamPort))
+    }
 
     var body: some View {
         ZStack {
@@ -14,9 +22,15 @@ struct ControlView: View {
 
             HStack(spacing: 0) {
                 // Left Column: Navigation
-                VStack(spacing: 24) {
+                VStack(spacing: 12) {
                     brandingHeader
+
                     Spacer()
+
+                    capturesButton
+
+                    Spacer().frame(height: 8)
+
                     disconnectButton
                 }
                 .padding(.vertical, 24)
@@ -26,21 +40,20 @@ struct ControlView: View {
                 .foregroundStyle(.white)
 
                 // Center Column: Live Video Feed
-                StreamingView(host: MicroscopeConfig.shared.host,
-                              port: MicroscopeConfig.shared.streamPort)
+                StreamingView(viewModel: streamVM)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(Color.black)
 
                 // Right Column: Information Panel
                 VStack(spacing: 16) {
                     VStack(spacing: 16) {
-                        StatusPanel(status: viewModel.systemStatus)
+                        StatusPanel(status: controlVM.systemStatus)
                         Divider().background(Color.white.opacity(0.3))
                         HStack(spacing: 16) {
                             zLevelMenu
                             CaptureButton(
-                                isCapturing: viewModel.isCapturing,
-                                action: { Task { await viewModel.capture() } }
+                                isCapturing: controlVM.isCapturing,
+                                action: { Task { await didTapCapture() } }
                             )
                         }
                     }
@@ -56,18 +69,34 @@ struct ControlView: View {
         .ignoresSafeArea()
         .navigationBarHidden(true)
         .onAppear {
-            viewModel.startStatusPolling()
+            controlVM.startStatusPolling()
         }
         .onDisappear {
-            viewModel.stopStatusPolling()
+            controlVM.stopStatusPolling()
         }
-        .alert("Error", isPresented: $viewModel.lastMessageIsError, actions: {
-            Button("OK", role: .cancel) { viewModel.clearMessage() }
+        .alert("Error", isPresented: $controlVM.lastMessageIsError, actions: {
+            Button("OK", role: .cancel) { controlVM.clearMessage() }
         }, message: {
-            if let message = viewModel.lastMessage {
+            if let message = controlVM.lastMessage {
                 Text(message)
             }
         })
+        .sheet(isPresented: $showCaptures) {
+            CapturesListView()
+        }
+    }
+
+    private func didTapCapture() async {
+        await controlVM.capture()
+        if let data = controlVM.capturedDNGData {
+            _ = try? captureManager.saveCapture(
+                data: data,
+                zMetadata: controlVM.selectedZ,
+                systemStatus: controlVM.systemStatus
+            )
+        }
+        await streamVM.stopPreview()
+        await streamVM.startPreview()
     }
 
     private var brandingHeader: some View {
@@ -78,11 +107,23 @@ struct ControlView: View {
             .padding(.top, 8)
     }
 
+    private var capturesButton: some View {
+        Button(action: { showCaptures = true }) {
+            VStack(spacing: 4) {
+                Image(systemName: "photo.on.rectangle.angled")
+                    .font(.title2)
+                Text("Captures")
+                    .font(Theme.Typography.mono(size: 8))
+            }
+            .foregroundStyle(.white.opacity(0.7))
+        }
+    }
+
     private var zLevelMenu: some View {
         Menu {
-            Button("5x (5μm)") { viewModel.selectedZ = 5.0 }
-            Button("15x (15μm)") { viewModel.selectedZ = 15.0 }
-            Button("30x (30μm)") { viewModel.selectedZ = 30.0 }
+            Button("5x (5μm)") { controlVM.selectedZ = 5.0 }
+            Button("15x (15μm)") { controlVM.selectedZ = 15.0 }
+            Button("30x (30μm)") { controlVM.selectedZ = 30.0 }
         } label: {
             zLevelLabel
         }
@@ -90,7 +131,7 @@ struct ControlView: View {
 
     private var zLevelLabel: some View {
         HStack(spacing: 1) {
-            Text("\(Int(viewModel.selectedZ))")
+            Text("\(Int(controlVM.selectedZ))")
                 .font(Theme.Typography.heading(size: 18))
             Text("x")
                 .font(Theme.Typography.mono(size: 12))

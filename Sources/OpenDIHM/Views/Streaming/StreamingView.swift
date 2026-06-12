@@ -13,16 +13,7 @@ import UIKit
 
 /// SwiftUI wrapper for the streaming display.
 struct StreamingView: View {
-    let host: String
-    let port: Int
-
-    @StateObject private var viewModel: StreamingViewModel
-
-    init(host: String, port: Int) {
-        self.host = host
-        self.port = port
-        _viewModel = StateObject(wrappedValue: StreamingViewModel(host: host, port: port))
-    }
+    @ObservedObject var viewModel: StreamingViewModel
 
     var body: some View {
         ZStack {
