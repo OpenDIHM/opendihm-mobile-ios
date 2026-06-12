@@ -23,6 +23,9 @@ final class ControlViewModel: ObservableObject {
     /// to trigger file saving, reconstruction pipeline, etc.
     @Published private(set) var capturedDNGData: Data?
 
+    /// Called after a successful capture — parent can use this to save and restart preview.
+    var onCaptureCompleted: ((Data) -> Void)?
+
     // MARK: - Dependencies
 
     private let apiClient = MicroscopeAPIClient()
@@ -38,9 +41,11 @@ final class ControlViewModel: ObservableObject {
 
         do {
             let data = try await apiClient.captureHologram(zMetadata: selectedZ)
+            print("OpenDIHM Capture: \(data.count / 1024) KB of RAW data received")
             capturedDNGData = data
             lastMessageIsError = false
             lastMessage = "Captured \(data.count / 1024) KB of RAW data"
+            onCaptureCompleted?(data)
         } catch {
             lastMessageIsError = true
             lastMessage = error.localizedDescription
