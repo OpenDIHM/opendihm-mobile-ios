@@ -21,6 +21,12 @@ struct RootView: View {
                         AppDelegate.lockOrientation(.portrait, andRotateTo: .portrait)
                     }
                     .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
+            case .directConnect:
+                DirectConnectView()
+                    .onAppear {
+                        AppDelegate.lockOrientation(.portrait, andRotateTo: .portrait)
+                    }
+                    .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
             case .control:
                 ControlView()
                     .onAppear {

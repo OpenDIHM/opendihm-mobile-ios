@@ -24,7 +24,7 @@ final class ConnectionViewModel: ObservableObject {
 
     /// IP of the Pi resolved after successful provisioning.
     /// Defaulting to opendihm.local per user requirement.
-    private(set) var resolvedHost: String = "opendihm.local"
+    private(set) var resolvedHost: String = "raspberrypi.local"
 
     // MARK: - Dependencies
 
@@ -77,7 +77,7 @@ final class ConnectionViewModel: ObservableObject {
                     isConnecting = false
                     isProvisioned = true
                     currentStep = 4
-                    resolvedHost = "opendihm.local"
+                    resolvedHost = "raspberrypi.local"
                 case .failed(let reason):
                     statusMessage = reason
                     isError = true

@@ -74,13 +74,13 @@ struct ConnectionView: View {
                                 
                                 // Skip Bluetooth moved beneath
                                 Button(action: {
-                                    router.didConnect(host: "opendihm")
+                                    router.currentScreen = .directConnect
                                 }) {
                                     Text("Microscope is already connected")
                                         .font(Theme.Typography.heading(size: 16))
                                         .frame(maxWidth: .infinity)
                                         .padding(.vertical, 16)
-                                        .background(Theme.background) // match native background
+                                        .background(Theme.background)
                                         .foregroundStyle(Theme.primary)
                                         .clipShape(RoundedRectangle(cornerRadius: 12))
                                         .overlay(
@@ -127,13 +127,13 @@ struct ConnectionView: View {
                                         .padding(.top, 10)
                                         
                                         Button(action: {
-                                            router.didConnect(host: "opendihm")
+                                            router.currentScreen = .directConnect
                                         }) {
                                             Text("Skip Bluetooth")
                                                 .font(Theme.Typography.heading(size: 16))
                                                 .frame(maxWidth: .infinity)
                                                 .padding(.vertical, 16)
-                                                .background(Theme.background) // match native background
+                                                .background(Theme.background)
                                                 .foregroundStyle(Theme.primary)
                                                 .clipShape(RoundedRectangle(cornerRadius: 12))
                                                 .overlay(

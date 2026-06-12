@@ -12,6 +12,8 @@ enum AppScreen {
     case welcome
     /// BLE pairing and Wi-Fi provisioning screen.
     case connection
+    /// Direct IP address entry screen (when microscope is already connected).
+    case directConnect
     /// Main microscope control screen (shown after successful pairing).
     case control
 }
