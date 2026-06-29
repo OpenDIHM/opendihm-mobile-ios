@@ -1,0 +1,19 @@
+name: Build iOS IPA
+on: [push]
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build IPA
+        run: |
+          chmod +x dev.sh
+          # Projeyi derliyoruz
+          ./dev.sh
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenDIHM-IPA
+          path: build/*.ipa
+          
