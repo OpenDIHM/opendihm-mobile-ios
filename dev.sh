@@ -125,12 +125,13 @@ build_app() {
 }
 
 build_for_device() {
-    log_info "Building for arm64 device (unsignged)..."
+log_info "Building for arm64 device (unsignged)..."
     xcodebuild build \
         -scheme "${SCHEME}" \
         -destination "generic/platform=iOS" \
         CONFIGURATION_BUILD_DIR="${BUILD_DIR}" \
         CODE_SIGNING_ALLOWED=NO \
+        ASSETCATALOG_COMPILER_APPICON_NAME="" \
         -quiet
 }
 
