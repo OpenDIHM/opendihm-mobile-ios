@@ -105,7 +105,7 @@ build_app() {
         CONFIGURATION_BUILD_DIR="${BUILD_DIR}" \
         CODE_SIGNING_ALLOWED=NO \
         ASSETCATALOG_COMPILER_APPICON_NAME="" \
-        -quiet
+        
 
     log_info "Packaging .app into .ipa..."
     mkdir -p Payload
