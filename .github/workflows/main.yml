@@ -1,4 +1,3 @@
-YAML
 name: Build iOS IPA
 on: [push]
 
@@ -7,16 +6,15 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install dependencies
         run: brew install xcodegen
-        
-      - name: Build IPA
+
+      - name: Run Build Script
         run: |
           chmod +x dev.sh
-          # Eğer dev.sh çalışırken hata verirse, burada logları görebiliriz
           ./dev.sh
-          
+
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
