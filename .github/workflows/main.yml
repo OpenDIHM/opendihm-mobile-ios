@@ -5,15 +5,16 @@ jobs:
   build:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: Install xcodegen
         run: brew install xcodegen
 
       - name: Run Build Script
         run: |
           chmod +x dev.sh
-        ./dev.sh simulator
+          ./dev.sh simulator
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
