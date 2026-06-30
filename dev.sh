@@ -153,35 +153,34 @@ package_ipa() {
 main() {
     check_dependencies
     
-    # 1. Önce temizlik ve proje kurulumu
+    # 1. Temizlik ve Proje Hazırlığı
     cleanup
     generate_project
     
-    # 2. Mode kontrolleri
+    # 2. Mod Kontrolü (if-elif-else yapısı ile tek bir akış garantisi)
     if [[ "${MODE}" == "deploy" ]]; then
         log_warn "Physical device deployment requires Code Signing via Apple Developer."
-        log_info "Opening Xcode to handle code signing and physical deployment natively..."
         open "${SCHEME}.xcodeproj"
         log_success "Project generated and opened in Xcode!"
         exit 0
-    fi
 
-    if [[ "${MODE}" == "ipa" ]]; then
+    elif [[ "${MODE}" == "ipa" ]]; then
+        log_info "Mode set to IPA. Building and packaging..."
         build_for_device
         package_ipa
-        log_success "IPA build complete. Share ${BUILD_DIR}/${IPA_NAME}."
+        log_success "IPA generation complete."
         exit 0
-    fi
-    
-    # 3. Sadece simülatör moduysa (MODE=="sim") bu kısmı çalıştır
-    if [[ "${MODE}" == "sim" ]]; then
+
+    elif [[ "${MODE}" == "sim" ]]; then
+        log_info "Mode set to SIM. Starting simulator flow..."
         local simulator_id
         simulator_id=$(find_simulator)
-        
         prepare_simulator "${simulator_id}"
         build_app "${simulator_id}"
         deploy_and_run "${simulator_id}"
-        log_success "Development workflow completed. App is running in the simulator."
+        log_success "Development workflow completed."
+        exit 0
+
     else
         log_error "Unknown mode: ${MODE}. Use 'sim', 'deploy', or 'ipa'."
         exit 1
