@@ -88,16 +88,16 @@ final class StreamingViewModel: ObservableObject {
                 switch state {
                 case .ready:
                     print("TCP Stream Ready")
-                    isConnecting = false
-                    isConnected = true
-                    receiveData()
+                    self isConnecting = false
+                    self isConnected = true
+                   receiveData()
                 case .failed(let error):
                     print("TCP Stream Failed: \(error)")
-                    isConnected = false
-                    isConnecting = false
+                    self isConnected = false
+                    self isConnecting = false
                 case .cancelled:
-                    isConnected = false
-                    isConnecting = false
+                    self isConnected = false
+                    self isConnecting = false
                 default:
                     break
                 }
