@@ -153,14 +153,11 @@ package_ipa() {
 main() {
     check_dependencies
     
-    if [[ "${MODE}" != "sim" && "${MODE}" != "deploy" && "${MODE}" != "ipa" ]]; then
-        log_error "Usage: ./dev.sh [sim|deploy|ipa]"
-        exit 1
-    fi
-    
+    # 1. Önce temizlik ve proje kurulumu
     cleanup
     generate_project
     
+    # 2. Mode kontrolleri
     if [[ "${MODE}" == "deploy" ]]; then
         log_warn "Physical device deployment requires Code Signing via Apple Developer."
         log_info "Opening Xcode to handle code signing and physical deployment natively..."
@@ -172,20 +169,23 @@ main() {
     if [[ "${MODE}" == "ipa" ]]; then
         build_for_device
         package_ipa
-        log_success "IPA build complete. Share ${BUILD_DIR}/${IPA_NAME} with your friend."
-        log_info "Reminder: Your friend must sign the IPA via Sideloadly (or similar) before installing."
+        log_success "IPA build complete. Share ${BUILD_DIR}/${IPA_NAME}."
         exit 0
     fi
     
-    # Simulator flow
-    local simulator_id
-    simulator_id=$(find_simulator)
-    
-    prepare_simulator "${simulator_id}"
-    build_app "${simulator_id}"
-    deploy_and_run "${simulator_id}"
-    
-    log_success "Development workflow completed. App is running in the simulator."
+    # 3. Sadece simülatör moduysa (MODE=="sim") bu kısmı çalıştır
+    if [[ "${MODE}" == "sim" ]]; then
+        local simulator_id
+        simulator_id=$(find_simulator)
+        
+        prepare_simulator "${simulator_id}"
+        build_app "${simulator_id}"
+        deploy_and_run "${simulator_id}"
+        log_success "Development workflow completed. App is running in the simulator."
+    else
+        log_error "Unknown mode: ${MODE}. Use 'sim', 'deploy', or 'ipa'."
+        exit 1
+    fi
 }
 
 main "$@"
