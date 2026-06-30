@@ -90,7 +90,7 @@ final class StreamingViewModel: ObservableObject {
                     print("TCP Stream Ready")
                     self.isConnecting = false
                     self.isConnected = true
-                   receiveData()
+                   self.receiveData()
                 case .failed(let error):
                     print("TCP Stream Failed: \(error)")
                     self.isConnected = false
