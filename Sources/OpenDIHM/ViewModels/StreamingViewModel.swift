@@ -127,7 +127,7 @@ final class StreamingViewModel: ObservableObject {
                 }
             }
             if !isComplete && error == nil {
-                self.receiveData()
+                Task { @MainActor in self.receiveData() }
             } else {
                 print("TCP Stream Closed (Complete: \(isComplete))")
                 Task { @MainActor in self.isConnected = false }
