@@ -115,7 +115,7 @@ build_app() {
     log_info "IPA created successfully."
 }
 
-deploy_and_run() {
+#deploy_and_run() {
     local device_id="$1"
     log_info "Installing the application onto the simulator..."
     xcrun simctl install "${device_id}" "${BUILD_DIR}/${SCHEME}.app"
