@@ -97,15 +97,22 @@ prepare_simulator() {
 }
 
 build_app() {
-    local device_id="$1"
-    log_info "Building the OpenDIHM target..."
-
+ log_info "Building the OpenDIHM target..."
+    
     xcodebuild build \
         -scheme "${SCHEME}" \
-        -destination "id=${device_id}" \
+        -destination "generic/platform=iOS" \
         CONFIGURATION_BUILD_DIR="${BUILD_DIR}" \
         CODE_SIGNING_ALLOWED=NO \
+        ASSETCATALOG_COMPILER_APPICON_NAME="" \
         -quiet
+
+    log_info "Packaging .app into .ipa..."
+    mkdir -p Payload
+    cp -r "${BUILD_DIR}/${SCHEME}.app" Payload/
+    zip -r "${BUILD_DIR}/${SCHEME}.ipa" Payload
+    rm -rf Payload
+    log_info "IPA created successfully."
 }
 
 deploy_and_run() {
