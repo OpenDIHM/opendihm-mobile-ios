@@ -1,131 +1,18 @@
 #!/usr/bin/env bash
-
-# ==============================================================================
-# OpenDIHM Mobile iOS - Development Script
-# Automates the cleanup, project generation, and simulator deployment.
-# ==============================================================================
-
 set -euo pipefail
 
-# ==============================================================================
 # Configuration
-# ==============================================================================
-
-readonly MODE="${1:-sim}"
-readonly APP_BUNDLE_ID="com.opendihm.mobile-ios"
 readonly SCHEME="OpenDIHM"
 readonly BUILD_DIR="${PWD}/build"
 readonly IPA_NAME="${SCHEME}.ipa"
 
-# Logging Colors
-readonly RED='\033[0;31m'
-readonly GREEN='\033[0;32m'
-readonly YELLOW='\033[1;33m'
-readonly BLUE='\033[0;34m'
-readonly NC='\033[0m' # No Color
+log_info() { echo -e "\033[0;34mINFO:\033[0m $1"; }
+log_success() { echo -e "\033[0;32mSUCCESS:\033[0m $1"; }
+log_error() { echo -e "\033[0;31mERROR:\033[0m $1"; exit 1; }
 
-# ==============================================================================
-# Helper Functions
-# ==============================================================================
-
-log_info() {
-    echo -e "${BLUE}INFO:${NC} $1"
-}
-
-log_success() {
-    echo -e "${GREEN}SUCCESS:${NC} $1"
-}
-
-log_warn() {
-    echo -e "${YELLOW}WARNING:${NC} $1" >&2
-}
-
-log_error() {
-    echo -e "${RED}ERROR:${NC} $1" >&2
-}
-
-check_dependencies() {
-    if ! command -v xcodegen >/dev/null 2>&1; then
-        log_error "xcodegen is not installed. Please install it (e.g., brew install xcodegen) to continue."
-        exit 1
-    fi
-}
-
-# ==============================================================================
-# Core Operations
-# ==============================================================================
-
-cleanup() {
-    log_info "Cleaning build artifacts and Xcode project files..."
-    rm -rf "${BUILD_DIR}"
-    rm -rf "${SCHEME}.xcodeproj"
-    rm -rf "${SCHEME}.xcworkspace"
-}
-
-generate_project() {
-    log_info "Regenerating Xcode project via xcodegen..."
-    xcodegen >/dev/null
-}
-
-find_simulator() {
-    local device_id
-    # Extract the first available iPhone simulator UUID using regex
-    device_id=$(xcrun simctl list devices available | awk '/iPhone/ { match($0, /[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}/); if (RSTART) { print substr($0, RSTART, RLENGTH); exit } }')
-    
-    if [[ -z "${device_id}" ]]; then
-        log_error "No available iPhone simulator could be found."
-        exit 1
-    fi
-    echo "${device_id}"
-}
-
-prepare_simulator() {
-    local device_id="$1"
-    log_info "Targeting Simulator Device ID: ${device_id}"
-    
-    # Boot the simulator; redirect stderr as it naturally returns an error if already booted
-    if ! xcrun simctl boot "${device_id}" 2>/dev/null; then
-        local boot_status
-        boot_status=$(xcrun simctl list devices | grep "${device_id}" | grep -o 'Booted' || true)
-        if [[ "${boot_status}" != "Booted" ]]; then
-            log_warn "Simulator boot command failed, but it may already be running or initializing."
-        fi
-    fi
-
-    # Ensure the Simulator UI is launched
-    open -a Simulator
-}
-
-build_app() {
- log_info "Building the OpenDIHM target..."
-    
-    xcodebuild build \
-        -scheme "${SCHEME}" \
-        -destination "generic/platform=iOS" \
-        CONFIGURATION_BUILD_DIR="${BUILD_DIR}" \
-        CODE_SIGNING_ALLOWED=NO \
-        ASSETCATALOG_COMPILER_APPICON_NAME="" \
-        
-
-    log_info "Packaging .app into .ipa..."
-    mkdir -p Payload
-    cp -r "${BUILD_DIR}/${SCHEME}.app" Payload/
-    zip -r "${BUILD_DIR}/${SCHEME}.ipa" Payload
-    rm -rf Payload
-    log_info "IPA created successfully."
-}
-
-#deploy_and_run() {
- device_id="$1"
-    log_info "Installing the application onto the simulator..."
-    xcrun simctl install "${device_id}" "${BUILD_DIR}/${SCHEME}.app"
-
-    log_info "Launching the application..."
-    xcrun simctl launch "${device_id}" "${APP_BUNDLE_ID}"
-}
-
+# Sadece IPA üretmek için gereken fonksiyonlar
 build_for_device() {
-log_info "Building for arm64 device (unsignged)..."
+    log_info "Building for iOS device..."
     xcodebuild build \
         -scheme "${SCHEME}" \
         -destination "generic/platform=iOS" \
@@ -137,54 +24,15 @@ log_info "Building for arm64 device (unsignged)..."
 
 package_ipa() {
     log_info "Packaging .app into .ipa..."
-    local payload_dir="${BUILD_DIR}/Payload"
-    mkdir -p "${payload_dir}"
-    cp -r "${BUILD_DIR}/${SCHEME}.app" "${payload_dir}/"
+    mkdir -p "${BUILD_DIR}/Payload"
+    cp -r "${BUILD_DIR}/${SCHEME}.app" "${BUILD_DIR}/Payload/"
     cd "${BUILD_DIR}" && zip -ry "${IPA_NAME}" "Payload/" >/dev/null
-    rm -rf "${payload_dir}"
+    rm -rf "${BUILD_DIR}/Payload"
     log_success "IPA generated at: ${BUILD_DIR}/${IPA_NAME}"
-    ls -lh "${BUILD_DIR}/${IPA_NAME}"
 }
 
-# ==============================================================================
-# Main Entry Point
-# ==============================================================================
-
-main() {
-    check_dependencies
-    
-    # 1. Temizlik ve Proje Hazırlığı
-    cleanup
-    generate_project
-    
-    # 2. Mod Kontrolü (if-elif-else yapısı ile tek bir akış garantisi)
-    if [[ "${MODE}" == "deploy" ]]; then
-        log_warn "Physical device deployment requires Code Signing via Apple Developer."
-        open "${SCHEME}.xcodeproj"
-        log_success "Project generated and opened in Xcode!"
-        exit 0
-
-    elif [[ "${MODE}" == "ipa" ]]; then
-        log_info "Mode set to IPA. Building and packaging..."
-        build_for_device
-        package_ipa
-        log_success "IPA generation complete."
-        exit 0
-
-    elif [[ "${MODE}" == "sim" ]]; then
-        log_info "Mode set to SIM. Starting simulator flow..."
-        local simulator_id
-        simulator_id=$(find_simulator)
-        prepare_simulator "${simulator_id}"
-        build_app "${simulator_id}"
-        deploy_and_run "${simulator_id}"
-        log_success "Development workflow completed."
-        exit 0
-
-    else
-        log_error "Unknown mode: ${MODE}. Use 'sim', 'deploy', or 'ipa'."
-        exit 1
-    fi
-}
-
-main "$@"
+# Sadece bu fonksiyon çalışacak
+log_info "IPA generation started..."
+build_for_device
+package_ipa
+log_success "Build complete."
